@@ -17,6 +17,8 @@ final class RecordingController: ObservableObject {
     @Published var lastError: String?
     /// Set when system audio couldn't start but the mic is still recording.
     @Published var systemAudioWarning: String?
+    /// Mic status worth showing (echo-cancel fallback, silent input device).
+    @Published var micWarning: String?
 
     let store: MeetingStore
     let settings: AppSettings
@@ -74,6 +76,7 @@ final class RecordingController: ObservableObject {
         guard !isRecording, let meeting = store.meeting(meetingID) else { return }
         lastError = nil
         systemAudioWarning = nil
+        micWarning = nil
 
         guard await Permissions.ensureMicAccess() else {
             lastError = "Microphone access is required to record. Enable it in System Settings → Privacy & Security → Microphone."
@@ -101,6 +104,20 @@ final class RecordingController: ObservableObject {
             }
             self.session = session
 
+            // Mic first: a voice-processing attempt may take a few seconds once,
+            // and toggling it reconfigures the input device — get the mic settled
+            // before system audio starts so the two stream timelines stay aligned.
+            let mic = MicRecorder()
+            mic.onSamples = { [weak session] in session?.appendMic($0) }
+            mic.onNotice = { [weak self] message in
+                Task { @MainActor in self?.micWarning = message }
+            }
+            mic.onVoiceProcessingFailed = { [weak self] in
+                Task { @MainActor in self?.settings.vpKnownBad = true }
+            }
+            try await mic.start(echoCancellation: settings.echoCancellation && !settings.vpKnownBad)
+            self.mic = mic
+
             if wantSystem {
                 let sys = SystemAudioRecorder()
                 sys.onSamples = { [weak session] in session?.appendSystem($0) }
@@ -117,11 +134,6 @@ final class RecordingController: ObservableObject {
                         ?? "System audio unavailable (\(error.localizedDescription)) — recording your mic only."
                 }
             }
-
-            let mic = MicRecorder()
-            mic.onSamples = { [weak session] in session?.appendMic($0) }
-            try mic.start(echoCancellation: settings.echoCancellation)
-            self.mic = mic
 
             state = .recording(meetingID: meeting.id, started: Date())
         } catch {

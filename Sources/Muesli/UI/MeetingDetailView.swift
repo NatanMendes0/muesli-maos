@@ -97,6 +97,14 @@ struct MeetingDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .lineLimit(1)
+                        .help(warning)
+                }
+                if let warning = recorder.micWarning, isLive {
+                    Label(warning, systemImage: "mic.slash")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                        .help(warning)
                 }
                 Spacer()
             }

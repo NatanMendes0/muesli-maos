@@ -107,6 +107,8 @@ Muesli --enhance-test        # ping the configured AI provider
 - **System audio permission enabled but capture fails** — relaunch Muesli after granting. If you rebuilt the app, macOS may want the toggle flipped off/on again (ad-hoc signatures change per build).
 - **Transcript shows things nobody said during silence** — Whisper hallucinates on silence; Muesli gates silent chunks and filters the classic phantoms ("Thank you.", `[BLANK_AUDIO]`), but a noisy room can still sneak one through.
 - **`Me` text appearing as `Them` too** — you're on speakers with echo cancellation off. Turn it on (Settings → Recording) or wear headphones.
+- **Mic not recording / echo-cancel warnings** — Apple's voice-processing unit (AUVoiceIO) is broken on some Macs: enabling it can stall for minutes, fail with `-10875`, or deliver pure silence — and toggling it reconfigures the input device out from under any live engine. Muesli therefore brings the voice-processed engine up on a throwaway thread under a 5 s deadline *before* anything else records, falls back to the raw mic on any failure, remembers the verdict (so later recordings start instantly), watchdogs the first 2.5 s of audio for silence, and auto-restarts capture when the input device changes mid-meeting. Diagnose your machine any time with:
+  `./build/Muesli.app/Contents/MacOS/Muesli --mictest` (prints buffer counts and peak levels with echo cancellation on and off).
 
 ## Roadmap
 

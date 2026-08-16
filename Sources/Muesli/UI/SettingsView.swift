@@ -173,10 +173,15 @@ struct RecordingSettingsTab: View {
     var body: some View {
         Form {
             Toggle("Capture system audio (the other side of calls)", isOn: $settings.captureSystemAudio)
-            Toggle("Echo cancellation on the mic", isOn: $settings.echoCancellation)
-            Text("Echo cancellation keeps call audio played through speakers out of your \"Me\" stream. If you use headphones you can turn it off for a rawer mic signal.")
+            Toggle("Echo cancellation on the mic (experimental)", isOn: $settings.echoCancellation)
+            Text("Keeps call audio played through speakers out of your \"Me\" stream. Recording always starts on the raw mic instantly; echo cancellation is probed in the background and only used if it proves healthy. Headphones make it unnecessary.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if settings.vpKnownBad {
+                Label("Echo cancellation failed on this Mac and is being skipped. Toggle it off and on to retry.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
 
             Divider()
 

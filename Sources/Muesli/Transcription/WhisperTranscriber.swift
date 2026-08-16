@@ -144,11 +144,21 @@ struct WhisperTranscriber {
 
 /// Tiny lock-protected box (whisper timeout flag crosses threads).
 final class Atomic<T>: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _value: T
+    fileprivate let lock = NSLock()
+    fileprivate var _value: T
     init(_ value: T) { _value = value }
     var value: T {
         get { lock.lock(); defer { lock.unlock() }; return _value }
         set { lock.lock(); defer { lock.unlock() }; _value = newValue }
+    }
+}
+
+extension Atomic where T == Int {
+    /// Atomic increment-and-get — used for engine generation tokens.
+    func next() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        _value += 1
+        return _value
     }
 }

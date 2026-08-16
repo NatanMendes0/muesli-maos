@@ -25,7 +25,16 @@ final class AppSettings: ObservableObject {
     @Published var whisperPathOverride: String { didSet { d.set(whisperPathOverride, forKey: "whisperPathOverride") } }
     @Published var modelFileName: String { didSet { d.set(modelFileName, forKey: "modelFileName") } }
     @Published var language: String { didSet { d.set(language, forKey: "language") } }
-    @Published var echoCancellation: Bool { didSet { d.set(echoCancellation, forKey: "echoCancellation") } }
+    @Published var echoCancellation: Bool {
+        didSet {
+            d.set(echoCancellation, forKey: "echoCancellation")
+            // User touched the toggle → allow a fresh probe on the next recording.
+            if vpKnownBad { vpKnownBad = false }
+        }
+    }
+    /// Set when the voice-processing unit stalled, errored, or went silent on
+    /// this machine; future recordings skip the probe until the user retries.
+    @Published var vpKnownBad: Bool { didSet { d.set(vpKnownBad, forKey: "vpKnownBad") } }
     @Published var captureSystemAudio: Bool { didSet { d.set(captureSystemAudio, forKey: "captureSystemAudio") } }
     @Published var chunkSeconds: Double { didSet { d.set(chunkSeconds, forKey: "chunkSeconds") } }
 
@@ -38,6 +47,7 @@ final class AppSettings: ObservableObject {
         modelFileName = d.string(forKey: "modelFileName") ?? "ggml-base.en.bin"
         language = d.string(forKey: "language") ?? "en"
         echoCancellation = d.object(forKey: "echoCancellation") == nil ? true : d.bool(forKey: "echoCancellation")
+        vpKnownBad = d.bool(forKey: "vpKnownBad")
         captureSystemAudio = d.object(forKey: "captureSystemAudio") == nil ? true : d.bool(forKey: "captureSystemAudio")
         chunkSeconds = d.object(forKey: "chunkSeconds") == nil ? 20 : d.double(forKey: "chunkSeconds")
     }
