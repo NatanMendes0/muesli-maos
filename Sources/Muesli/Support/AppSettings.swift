@@ -4,11 +4,13 @@ import SwiftUI
 enum AIProvider: String, CaseIterable, Identifiable {
     case anthropic
     case ollama
+    case openai
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .anthropic: return "Claude (Anthropic API)"
-        case .ollama: return "Ollama (fully local)"
+        case .anthropic: return "Claude (API Anthropic)"
+        case .ollama: return "Ollama (totalmente local)"
+        case .openai: return "API compatível com OpenAI"
         }
     }
 }
@@ -22,6 +24,8 @@ final class AppSettings: ObservableObject {
     @Published var anthropicModel: String { didSet { d.set(anthropicModel, forKey: "anthropicModel") } }
     @Published var ollamaBaseURL: String { didSet { d.set(ollamaBaseURL, forKey: "ollamaBaseURL") } }
     @Published var ollamaModel: String { didSet { d.set(ollamaModel, forKey: "ollamaModel") } }
+    @Published var openAIBaseURL: String { didSet { d.set(openAIBaseURL, forKey: "openAIBaseURL") } }
+    @Published var openAIModel: String { didSet { d.set(openAIModel, forKey: "openAIModel") } }
     @Published var whisperPathOverride: String { didSet { d.set(whisperPathOverride, forKey: "whisperPathOverride") } }
     @Published var modelFileName: String { didSet { d.set(modelFileName, forKey: "modelFileName") } }
     @Published var language: String { didSet { d.set(language, forKey: "language") } }
@@ -43,6 +47,8 @@ final class AppSettings: ObservableObject {
         anthropicModel = d.string(forKey: "anthropicModel") ?? "claude-sonnet-5"
         ollamaBaseURL = d.string(forKey: "ollamaBaseURL") ?? "http://localhost:11434"
         ollamaModel = d.string(forKey: "ollamaModel") ?? "llama3.1"
+        openAIBaseURL = d.string(forKey: "openAIBaseURL") ?? "http://localhost:20128/v1"
+        openAIModel = d.string(forKey: "openAIModel") ?? "stack"
         whisperPathOverride = d.string(forKey: "whisperPathOverride") ?? ""
         modelFileName = d.string(forKey: "modelFileName") ?? "ggml-base.en.bin"
         language = d.string(forKey: "language") ?? "en"
@@ -66,10 +72,23 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    var openAIKey: String {
+        get { KeychainHelper.read(account: "openai-api-key") ?? "" }
+        set {
+            if newValue.isEmpty {
+                KeychainHelper.delete(account: "openai-api-key")
+            } else {
+                KeychainHelper.save(account: "openai-api-key", value: newValue)
+            }
+            objectWillChange.send()
+        }
+    }
+
     var hasAIConfigured: Bool {
         switch provider {
         case .anthropic: return !anthropicKey.isEmpty
         case .ollama: return true
+        case .openai: return !openAIKey.isEmpty
         }
     }
 

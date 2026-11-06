@@ -15,13 +15,13 @@ enum WhisperError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .binaryNotFound:
-            return "whisper-cli not found. Install it with `brew install whisper-cpp`, or set the path in Settings → Transcription."
+            return "whisper-cli não encontrado. Instale com `brew install whisper-cpp` ou defina o caminho em Ajustes → Transcrição."
         case .modelNotFound:
-            return "No Whisper model downloaded. Get one in Settings → Transcription."
+            return "Nenhum modelo do Whisper foi baixado. Baixe um em Ajustes → Transcrição."
         case .failed(let detail):
-            return "Transcription failed: \(detail)"
+            return "A transcrição falhou: \(detail)"
         case .timedOut:
-            return "Transcription timed out."
+            return "A transcrição excedeu o tempo limite."
         }
     }
 }

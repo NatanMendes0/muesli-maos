@@ -23,7 +23,11 @@ final class MeetingStore: ObservableObject {
     init(baseDir: URL? = nil) {
         let root = baseDir ?? MeetingStore.defaultBaseDir()
         self.baseDir = root
-        self.meetingsDir = root.appendingPathComponent("meetings", isDirectory: true)
+        let configuredMeetingsDir = root.appendingPathComponent("meetings", isDirectory: true)
+        // FileManager can enumerate an iCloud directory but returns no children
+        // when it is addressed through a local symlink. Resolve it once so both
+        // launch-time loading and all later writes target the real directory.
+        self.meetingsDir = configuredMeetingsDir.resolvingSymlinksInPath()
         try? FileManager.default.createDirectory(at: meetingsDir, withIntermediateDirectories: true)
         load()
         seedWelcomeIfFirstRun()
@@ -45,16 +49,32 @@ final class MeetingStore: ObservableObject {
 
     // MARK: - Loading
 
+    /// Re-read meetings from disk. The storage directory may be an iCloud-backed
+    /// symlink, so reload whenever the app becomes active as well as on launch.
+    func reload() {
+        load()
+    }
+
     private func load() {
         let fm = FileManager.default
-        guard let folders = try? fm.contentsOfDirectory(at: meetingsDir, includingPropertiesForKeys: nil) else { return }
+        guard let folders = try? fm.contentsOfDirectory(
+            at: meetingsDir,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else { return }
         var loaded: [Meeting] = []
-        for folder in folders where folder.hasDirectoryPath {
+        for folder in folders {
+            guard (try? folder.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { continue }
             let json = folder.appendingPathComponent("meeting.json")
             guard let data = try? Data(contentsOf: json) else { continue }
-            if var m = try? JSONDecoder.muesli.decode(Meeting.self, from: data) {
+            do {
+                var m = try JSONDecoder.muesli.decode(Meeting.self, from: data)
+                // The on-disk directory, rather than JSON, is authoritative. It
+                // lets imported/iCloud-synced meetings keep working after moves.
                 m.folderName = folder.lastPathComponent
                 loaded.append(m)
+            } catch {
+                NSLog("Muesli: could not decode meeting.json in %@: %@", folder.lastPathComponent, String(describing: error))
             }
         }
         meetings = loaded.sorted { $0.createdAt > $1.createdAt }
@@ -179,7 +199,7 @@ final class MeetingStore: ObservableObject {
     private func seedWelcomeIfFirstRun() {
         let flag = baseDir.appendingPathComponent(".welcomed")
         guard !FileManager.default.fileExists(atPath: flag.path), meetings.isEmpty else { return }
-        var m = createMeeting(title: "Welcome to Muesli 🥣")
+        var m = createMeeting(title: "Boas-vindas ao Muesli 🥣")
         m.notesMD = WelcomeContent.notes
         m.transcript = WelcomeContent.transcript
         m.enhancedMD = WelcomeContent.enhanced
@@ -191,41 +211,42 @@ final class MeetingStore: ObservableObject {
 
 enum WelcomeContent {
     static let notes = """
-    - muesli = open-source granola
-    - type rough notes here during the call, fragments fine
-    - whisper runs locally → transcript stays on this mac
-    - hit ✨ Enhance after → claude/ollama merges notes + transcript
+    - Muesli = anotador de reuniões de código aberto
+    - escreva anotações rápidas durante a chamada; fragmentos servem
+    - o Whisper roda localmente → a transcrição permanece neste Mac
+    - selecione ✨ Aprimorar depois → Claude, 9router ou Ollama combinam anotações e transcrição
     """
 
     static let transcript: [TranscriptSegment] = [
-        .init(speaker: .them, start: 2, end: 8, text: "The core idea: you take rough notes while you talk, and the app records who said what."),
-        .init(speaker: .me, start: 9, end: 14, text: "Right — my mic is labeled Me, and everyone else comes through system audio as Them."),
-        .init(speaker: .them, start: 15, end: 24, text: "Transcription is whisper.cpp running on your own machine, so nothing leaves the laptop unless you ask for enhancement."),
-        .init(speaker: .me, start: 25, end: 33, text: "And when the call ends I press Enhance, and my fragments get rewritten into real notes using the transcript as the source of truth."),
-        .init(speaker: .them, start: 34, end: 41, text: "Exactly. Action items, decisions, open questions — all pulled out automatically. Your rough notes decide the emphasis."),
+        .init(speaker: .them, start: 2, end: 8, text: "A ideia central é simples: você faz anotações rápidas enquanto conversa e o aplicativo registra quem disse cada coisa."),
+        .init(speaker: .me, start: 9, end: 14, text: "Certo — meu microfone é identificado como Eu, e as outras pessoas chegam pelo áudio do sistema como Outros."),
+        .init(speaker: .them, start: 15, end: 24, text: "A transcrição usa o whisper.cpp no seu computador; nada sai do Mac a menos que você peça o aprimoramento."),
+        .init(speaker: .me, start: 25, end: 33, text: "Quando a chamada acaba, seleciono Aprimorar, e meus fragmentos viram uma nota completa com base na transcrição."),
+        .init(speaker: .them, start: 34, end: 41, text: "Exatamente. Itens de ação, decisões e questões em aberto são extraídos automaticamente. Suas anotações definem a ênfase."),
     ]
 
     static let enhanced = """
-    # Welcome to Muesli
+    # Boas-vindas ao Muesli
 
-    **TL;DR:** Muesli is an open-source, local-first meeting notepad. It captures your mic and your Mac's system audio (no bot joins the call), transcribes locally with Whisper, and then turns your rough notes into polished ones with AI.
+    ## Resumo
+    O Muesli é um anotador de reuniões de código aberto e local. Ele captura seu microfone e o áudio do sistema do Mac sem adicionar um bot à chamada, transcreve tudo localmente com o Whisper e transforma suas anotações rápidas em uma nota organizada com IA.
 
-    ## How a meeting works
-    - Press **Start meeting** before (or during) a call — works with Zoom, Meet, Teams, anything that makes sound.
-    - Type fragments in **Notes** while you talk. Don't slow down to write well.
-    - Watch the **Transcript** tab fill in as you go — *Me* is your mic, *Them* is the other side.
+    ## Como uma reunião funciona
+    - Selecione **Iniciar reunião** antes ou durante uma chamada — funciona com Zoom, Meet, Teams ou qualquer aplicativo que produza áudio.
+    - Escreva fragmentos em **Anotações** enquanto conversa. Não é necessário escrever de forma elaborada.
+    - Acompanhe a aba **Transcrição**: *Eu* representa seu microfone e *Outros* representa o áudio da chamada.
 
-    ## After the call
-    - Press **✨ Enhance** — your notes get rewritten using the transcript as ground truth.
-    - Use **Ask** to chat with the meeting ("what did we decide about pricing?").
+    ## Depois da chamada
+    - Selecione **✨ Aprimorar** para reescrever suas anotações usando a transcrição como fonte.
+    - Use **Perguntar** para consultar a reunião, por exemplo: "o que decidimos sobre preços?".
 
-    ## Action items
-    - [ ] Open **Settings → Transcription** and confirm the Whisper model is downloaded
-    - [ ] Add your Anthropic API key (or point Muesli at Ollama) in **Settings → AI**
-    - [ ] Grant microphone + screen-recording permission when prompted
+    ## Itens de ação
+    - [ ] Abra **Ajustes → Transcrição** e confirme que o modelo Whisper foi baixado
+    - [ ] Configure uma chave da API Anthropic, 9router ou Ollama em **Ajustes → IA**
+    - [ ] Conceda as permissões de microfone e gravação de tela quando solicitado
 
-    ## Open questions
-    - What should your first recorded meeting be?
+    ## Questões em aberto
+    - Qual será sua primeira reunião gravada?
     """
 }
 

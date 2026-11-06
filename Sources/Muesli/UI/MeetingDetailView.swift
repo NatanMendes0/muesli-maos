@@ -1,10 +1,10 @@
 import SwiftUI
 
 enum DetailTab: String, CaseIterable {
-    case notes = "Notes"
-    case transcript = "Transcript"
-    case enhanced = "Enhanced"
-    case ask = "Ask"
+    case notes = "Anotações"
+    case transcript = "Transcrição"
+    case enhanced = "Aprimorada"
+    case ask = "Perguntar"
 
     var icon: String {
         switch self {
@@ -34,22 +34,28 @@ struct MeetingDetailView: View {
         if let meeting {
             VStack(spacing: 0) {
                 header(meeting)
-                Divider()
+                Rectangle()
+                    .fill(CoastalTheme.separator)
+                    .frame(height: 1)
                 if isLive {
                     RecordBar()
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                    Divider()
+                        .background(CoastalTheme.surface.opacity(0.7))
+                    Rectangle()
+                        .fill(CoastalTheme.separator)
+                        .frame(height: 1)
                 }
                 content(meeting)
             }
+            .coastalPanel()
             .toolbar { toolbarContent(meeting) }
             .onAppear {
                 titleDraft = meeting.title
                 if isLive { tab = .notes }
             }
             .onChange(of: meeting.title) { _, new in titleDraft = new }
-            .alert("Enhance failed", isPresented: Binding(
+            .alert("Falha ao aprimorar", isPresented: Binding(
                 get: { enhanceError != nil },
                 set: { if !$0 { enhanceError = nil } }
             )) {
@@ -66,7 +72,7 @@ struct MeetingDetailView: View {
 
     private func header(_ meeting: Meeting) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            TextField("Meeting title", text: $titleDraft)
+            TextField("Título da reunião", text: $titleDraft)
                 .textFieldStyle(.plain)
                 .font(.title.weight(.semibold))
                 .onSubmit { store.updateTitle(meetingID, title: titleDraft) }
@@ -111,9 +117,10 @@ struct MeetingDetailView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 24)
+        .padding(.top, 18)
+        .padding(.bottom, 14)
+        .background(CoastalTheme.surface.opacity(0.45))
     }
 
     // MARK: - Tabs
@@ -155,17 +162,17 @@ struct MeetingDetailView: View {
                 Button {
                     Task { await recorder.stop() }
                 } label: {
-                    Label("Stop", systemImage: "stop.circle.fill")
+                    Label("Parar", systemImage: "stop.circle.fill")
                         .foregroundStyle(.red)
                 }
-                .help("Stop recording (⌘.)")
+                .help("Parar gravação (⌘.)")
             } else {
                 Button {
                     Task { await recorder.start(meetingID: meetingID) }
                 } label: {
-                    Label("Record", systemImage: "record.circle")
+                    Label("Gravar", systemImage: "record.circle")
                 }
-                .help("Record into this meeting")
+                .help("Gravar nesta reunião")
                 .disabled(recorder.isRecording)
             }
 
@@ -175,30 +182,37 @@ struct MeetingDetailView: View {
                 if enhancing {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Enhance", systemImage: "sparkles")
+                    Label("Aprimorar", systemImage: "sparkles")
                 }
             }
-            .help("Blend your rough notes with the transcript into polished notes")
+            .help("Combinar suas anotações com a transcrição em uma nota completa")
             .disabled(enhancing || isLive || (!meeting.hasTranscript && meeting.notesMD.isEmpty))
 
             Menu {
-                Button("Copy enhanced notes") { copy(meeting.enhancedMD ?? "") }
+                Button("Copiar prompt para Hermes (SESI)") {
+                    copyHermesPrompt(meeting)
+                }
+                .disabled(!meeting.hasTranscript && meeting.notesMD.isEmpty)
+
+                Divider()
+
+                Button("Copiar anotação aprimorada") { copy(meeting.enhancedMD ?? "") }
                     .disabled(meeting.enhancedMD == nil)
-                Button("Copy transcript") { copy(MeetingStore.transcriptMarkdown(meeting)) }
+                Button("Copiar transcrição") { copy(MeetingStore.transcriptMarkdown(meeting)) }
                     .disabled(!meeting.hasTranscript)
-                Button("Copy rough notes") { copy(meeting.notesMD) }
+                Button("Copiar anotações") { copy(meeting.notesMD) }
                     .disabled(meeting.notesMD.isEmpty)
                 Divider()
-                Button("Reveal files in Finder") {
+                Button("Mostrar arquivos no Finder") {
                     NSWorkspace.shared.activateFileViewerSelecting([store.folder(for: meeting)])
                 }
                 Divider()
-                Button("Re-transcribe from audio") {
+                Button("Transcrever novamente a partir do áudio") {
                     recorder.retranscribe(meetingID: meetingID)
                 }
                 .disabled(isLive)
             } label: {
-                Label("More", systemImage: "ellipsis.circle")
+                Label("Mais", systemImage: "ellipsis.circle")
             }
         }
     }
@@ -223,5 +237,65 @@ struct MeetingDetailView: View {
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func copyHermesPrompt(_ meeting: Meeting) {
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "pt_BR")
+        dateFormatter.dateFormat = "dd/MM/yyyy HH:mm"
+        let dataFormatada = dateFormatter.string(from: meeting.createdAt)
+
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm"
+        let prefixoArquivo = dateFormatter.string(from: meeting.createdAt)
+
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let dataISO = dateFormatter.string(from: meeting.createdAt)
+
+        let duracao = formatClock(meeting.durationSeconds)
+        let transcricao = MeetingStore.transcriptMarkdown(meeting)
+        let rascunho = meeting.notesMD.isEmpty ? "Nenhum rascunho manual registrado." : meeting.notesMD
+
+        let prompt = """
+Por favor, processe esta reunião gravada no Muesli e crie a Ata Executiva padronizada no meu cofre do Obsidian (SESI).
+
+### Arquivo Alvo:
+- **Caminho:** `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Cofre pessoal/10-SESI/Reunioes/\(prefixoArquivo) - \(meeting.title).md`
+
+### Metadados da Reunião:
+- **Título:** \(meeting.title)
+- **Data:** \(dataFormatada)
+- **Duração:** \(duracao)
+
+### Anotações de Rascunho:
+\(rascunho)
+
+### Transcrição Completa:
+\(transcricao)
+
+---
+### Diretrizes de Estruturação (Template Padrão SESI):
+1. **Frontmatter YAML:**
+```yaml
+---
+tipo: reuniao
+data: \(dataISO)
+duracao: "\(duracao)"
+participantes:
+  - "Natan Mendes"
+tags: [reuniao/executiva]
+---
+```
+2. **Cabeçalho Executivo:**
+- `# 📋 Ata Executiva de Reunião: \(meeting.title)`
+- `- **Data:** \(dataFormatada)`
+- `- **Duração:** \(duracao)`
+- `- **Participantes:** Natan Mendes`
+3. **## 📌 Deliberações e Discussão Técnica:**
+- Tópicos numerados (`### 1. [Tópico]`) contendo `- **Contexto Técnico:**` e `- **Status/Decisão:**`.
+4. **## 🎯 Plano de Ação:**
+- Tabela Markdown com colunas: `| Ação | Responsável | Prazo / Momento |`.
+"""
+
+        copy(prompt)
     }
 }

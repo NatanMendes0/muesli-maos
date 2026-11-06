@@ -8,8 +8,8 @@ enum Speaker: String, Codable {
 
     var label: String {
         switch self {
-        case .me: return "Me"
-        case .them: return "Them"
+        case .me: return "Eu"
+        case .them: return "Outros"
         }
     }
 }
@@ -45,12 +45,13 @@ struct Meeting: Identifiable, Codable, Equatable {
 
     var hasTranscript: Bool { !transcript.isEmpty }
 
-    var isDefaultTitle: Bool { title.hasPrefix("Meeting · ") }
+    var isDefaultTitle: Bool { title.hasPrefix("Reunião · ") || title.hasPrefix("Meeting · ") }
 
     static func defaultTitle(for date: Date = Date()) -> String {
         let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        return "Meeting · \(f.string(from: date))"
+        f.locale = Locale(identifier: "pt_BR")
+        f.dateFormat = "HH:mm"
+        return "Reunião · \(f.string(from: date))"
     }
 
     static func makeFolderName(for date: Date = Date(), id: UUID) -> String {

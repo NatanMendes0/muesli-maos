@@ -24,15 +24,16 @@ struct TranscriptView: View {
                                 HStack(spacing: 8) {
                                     ProgressView().controlSize(.small)
                                     Text(recorder.pendingChunks > 0
-                                         ? "Transcribing \(recorder.pendingChunks) chunk\(recorder.pendingChunks == 1 ? "" : "s")…"
-                                         : "Listening…")
+                                         ? "Transcrevendo \(recorder.pendingChunks) bloco\(recorder.pendingChunks == 1 ? "" : "s")…"
+                                         : "Ouvindo…")
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
                                 }
                                 .id("live-tail")
                             }
                         }
-                        .padding(16)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 22)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .onChange(of: meeting.transcript.count) { _, _ in
@@ -44,7 +45,7 @@ struct TranscriptView: View {
                 }
                 if isLive {
                     Divider()
-                    Toggle("Auto-scroll", isOn: $autoScroll)
+                    Toggle("Rolagem automática", isOn: $autoScroll)
                         .toggleStyle(.checkbox)
                         .font(.caption)
                         .padding(8)
@@ -58,8 +59,8 @@ struct TranscriptView: View {
                     .foregroundStyle(.tertiary)
                     .symbolEffect(.variableColor.iterative, isActive: isLive)
                 Text(isLive
-                     ? (recorder.pendingChunks > 0 ? "Transcribing the first chunk…" : "Listening — the transcript appears in ~20-second chunks.")
-                     : "No transcript yet. Record this meeting, or use ⋯ → Re-transcribe if audio files exist.")
+                     ? (recorder.pendingChunks > 0 ? "Transcrevendo o primeiro bloco…" : "Ouvindo — a transcrição aparece em blocos de aproximadamente 20 segundos.")
+                     : "Ainda não há transcrição. Grave esta reunião ou use ⋯ → Transcrever novamente se houver arquivos de áudio.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }

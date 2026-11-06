@@ -13,13 +13,16 @@ struct EnhancedNotesView: View {
         if enhancing {
             VStack(spacing: 12) {
                 ProgressView()
-                Text("Blending your notes with the transcript…")
+                Text("Combinando suas anotações com a transcrição…")
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let md = meeting?.enhancedMD {
             ScrollView {
-                MarkdownView(markdown: md)
+                MarkdownView(markdown: md
+                    .replacingOccurrences(of: "TL;DR:", with: "## Resumo\n")
+                    .replacingOccurrences(of: "TL;DR", with: "Resumo")
+                    .replacingOccurrences(of: "TLDR", with: "Resumo"))
                     .padding(20)
                     .frame(maxWidth: 760, alignment: .leading)
                     .frame(maxWidth: .infinity)
@@ -29,13 +32,13 @@ struct EnhancedNotesView: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 34))
                     .foregroundStyle(Color.oat)
-                Text("Turn your rough notes into polished ones")
+                Text("Transforme suas anotações em uma nota completa")
                     .font(.title3.weight(.semibold))
-                Text("Muesli merges what you typed with what was actually said —\ndecisions, action items, and details you didn't have time to write.")
+                Text("O Muesli combina o que você anotou com o que foi dito —\ndecisões, itens de ação e detalhes que não houve tempo de registrar.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
                 Button(action: onEnhance) {
-                    Label(settings.hasAIConfigured ? "Enhance notes" : "Set up AI to enhance", systemImage: "sparkles")
+                    Label(settings.hasAIConfigured ? "Aprimorar anotações" : "Configurar IA para aprimorar", systemImage: "sparkles")
                         .padding(.horizontal, 6)
                 }
                 .buttonStyle(.borderedProminent)
@@ -81,11 +84,11 @@ struct MarkdownView: View {
             if line == "---" || line == "***" {
                 blocks.append(.rule)
             } else if line.hasPrefix("### ") {
-                blocks.append(.heading(3, String(line.dropFirst(4))))
+                blocks.append(.heading(3, localizedHeading(String(line.dropFirst(4)))))
             } else if line.hasPrefix("## ") {
-                blocks.append(.heading(2, String(line.dropFirst(3))))
+                blocks.append(.heading(2, localizedHeading(String(line.dropFirst(3)))))
             } else if line.hasPrefix("# ") {
-                blocks.append(.heading(1, String(line.dropFirst(2))))
+                blocks.append(.heading(1, localizedHeading(String(line.dropFirst(2)))))
             } else if line.hasPrefix("- [ ] ") || line.hasPrefix("* [ ] ") {
                 blocks.append(.bullet(String(line.dropFirst(6)), checked: false))
             } else if line.hasPrefix("- [x] ") || line.hasPrefix("* [x] ") {
@@ -101,6 +104,13 @@ struct MarkdownView: View {
             }
         }
         return blocks
+    }
+
+    private func localizedHeading(_ text: String) -> String {
+        switch text.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "TL;DR", "TLDR": return "Resumo"
+        default: return text
+        }
     }
 
     @ViewBuilder

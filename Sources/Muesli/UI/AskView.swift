@@ -23,9 +23,9 @@ struct AskView: View {
                                 Image(systemName: "bubble.left.and.text.bubble.right")
                                     .font(.system(size: 30))
                                     .foregroundStyle(.tertiary)
-                                Text("Ask anything about this meeting.")
+                                Text("Pergunte qualquer coisa sobre esta reunião.")
                                     .foregroundStyle(.secondary)
-                                Text("“What did we decide?” · “List every number mentioned” · “Draft a follow-up email”")
+                                Text("“O que decidimos?” · “Liste todos os números mencionados” · “Escreva um e-mail de acompanhamento”")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
                             }
@@ -39,7 +39,7 @@ struct AskView: View {
                         if thinking {
                             HStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
-                                Text("Reading the meeting…").foregroundStyle(.secondary).font(.callout)
+                                Text("Lendo a reunião…").foregroundStyle(.secondary).font(.callout)
                             }
                             .id("thinking")
                         }
@@ -61,7 +61,7 @@ struct AskView: View {
 
             Divider()
             HStack(spacing: 8) {
-                TextField(settings.hasAIConfigured ? "Ask about this meeting…" : "Add an AI provider in Settings first…",
+                TextField(settings.hasAIConfigured ? "Pergunte sobre esta reunião…" : "Adicione um provedor de IA em Ajustes primeiro…",
                           text: $question)
                     .textFieldStyle(.roundedBorder)
                     .focused($fieldFocused)

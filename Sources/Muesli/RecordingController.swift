@@ -79,7 +79,7 @@ final class RecordingController: ObservableObject {
         micWarning = nil
 
         guard await Permissions.ensureMicAccess() else {
-            lastError = "Microphone access is required to record. Enable it in System Settings → Privacy & Security → Microphone."
+            lastError = "O acesso ao microfone é necessário para gravar. Ative-o em Ajustes do Sistema → Privacidade e Segurança → Microfone."
             return
         }
 

@@ -20,15 +20,15 @@ struct RecordBar: View {
                     .font(.title3.monospacedDigit().weight(.medium))
             }
 
-            LevelMeter(label: "Mic", level: recorder.micLevel, tint: .oat)
-            LevelMeter(label: "System", level: recorder.sysLevel, tint: .blue)
+            LevelMeter(label: "Microfone", level: recorder.micLevel, tint: .oat)
+            LevelMeter(label: "Sistema", level: recorder.sysLevel, tint: .blue)
 
             Spacer()
 
             if recorder.pendingChunks > 0 {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
-                    Text("\(recorder.pendingChunks) chunk\(recorder.pendingChunks == 1 ? "" : "s")")
+                    Text("\(recorder.pendingChunks) bloco\(recorder.pendingChunks == 1 ? "" : "s")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -37,7 +37,7 @@ struct RecordBar: View {
             Button {
                 Task { await recorder.stop() }
             } label: {
-                Label("Stop", systemImage: "stop.fill")
+                Label("Parar", systemImage: "stop.fill")
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)

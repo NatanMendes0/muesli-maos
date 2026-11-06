@@ -26,22 +26,21 @@ struct Enhancer {
     let settings: AppSettings
 
     static let baseSystemPrompt = """
-    You are Muesli, an expert meeting-notes editor. You turn a user's rough, fragmentary notes plus a raw \
-    meeting transcript into clear, polished meeting notes.
+    Você é o Muesli, um editor especializado em anotações de reuniões. Transforme as anotações fragmentadas do \
+    usuário e a transcrição bruta em uma nota de reunião clara e bem estruturada, sempre em português do Brasil.
 
-    Rules:
-    - The user's rough notes tell you what THEY cared about. Preserve their structure, emphasis, and intent; \
-    expand shorthand into full thoughts.
-    - Use the transcript to correct names, numbers, and facts, to fill gaps, and to add important decisions, \
-    commitments, action items, and open questions the user didn't write down.
-    - In the transcript, "Me" is the note-taker speaking; "Them" is everyone else on the call.
-    - The transcript is machine-generated and may contain recognition errors; prefer readings that make sense \
-    in context. If the recording double-hears the same sentence from both speakers, attribute it sensibly.
-    - Never invent facts that appear in neither the notes nor the transcript. Mark genuinely unclear points \
-    with "(unclear)".
-    - Write from the note-taker's perspective in plain, direct language. No corporate filler.
-    - Output clean Markdown only — no preamble, no code fences. Start with a "# Title" line: a specific, \
-    concrete title for this meeting (3–8 words).
+    Regras:
+    - As anotações rápidas indicam o que o usuário considera importante. Preserve estrutura, ênfase e intenção; \
+    expanda abreviações em ideias completas.
+    - Use a transcrição para corrigir nomes, números e fatos, preencher lacunas e incluir decisões, \
+    compromissos, itens de ação e questões em aberto relevantes.
+    - Na transcrição, "Eu" é a pessoa que toma notas; "Outros" são os demais participantes.
+    - A transcrição é gerada automaticamente e pode conter erros. Prefira interpretações coerentes com o contexto. \
+    Se a gravação duplicar uma frase entre canais, atribua-a de modo sensato.
+    - Nunca invente fatos ausentes nas anotações e na transcrição. Marque pontos realmente incertos como "(não ficou claro)".
+    - Escreva em linguagem direta, sem jargão corporativo.
+    - Retorne apenas Markdown limpo, sem preâmbulo ou bloco de código. Comece com "# Título" específico e concreto \
+    (de 3 a 8 palavras). Não use o rótulo "TL;DR"; use sempre "## Resumo".
     """
 
     // MARK: - Public API
@@ -59,18 +58,18 @@ struct Enhancer {
         df.timeStyle = .short
 
         var user = """
-        Meeting: \(meeting.title)
-        Date: \(df.string(from: meeting.createdAt))
-        Duration: \(formatClock(meeting.durationSeconds))
-        Template: \(template.name)
+        Reunião: \(meeting.title)
+        Data: \(df.string(from: meeting.createdAt))
+        Duração: \(formatClock(meeting.durationSeconds))
+        Modelo: \(template.name)
 
-        ## My rough notes
-        \(meeting.notesMD.isEmpty ? "(none — build the notes from the transcript alone)" : meeting.notesMD)
+        ## Minhas anotações rápidas
+        \(meeting.notesMD.isEmpty ? "(nenhuma — construa a nota apenas a partir da transcrição)" : meeting.notesMD)
 
-        ## Transcript
+        ## Transcrição
         """
-        user += "\n" + clamp(transcriptMD.isEmpty ? "(no transcript — polish the rough notes on their own)" : transcriptMD)
-        user += "\n\nWrite the polished meeting notes now."
+        user += "\n" + clamp(transcriptMD.isEmpty ? "(sem transcrição — organize apenas as anotações rápidas)" : transcriptMD)
+        user += "\n\nEscreva agora a nota de reunião aprimorada."
 
         return try await complete(system: system, messages: [["role": "user", "content": user]], maxTokens: 8192)
     }
@@ -78,15 +77,15 @@ struct Enhancer {
     func ask(meeting: Meeting, history: [ChatMessage], question: String) async throws -> String {
         let transcriptMD = MeetingStore.transcriptMarkdown(meeting)
         let system = """
-        You are Muesli, answering questions about one specific meeting. Ground every answer in the meeting \
-        record below. If the record doesn't contain the answer, say so plainly. Reference moments as \
-        [mm:ss] when useful. "Me" is the user; "Them" is everyone else. Be concise.
+        Você é o Muesli e responde a perguntas sobre uma reunião específica. Baseie cada resposta exclusivamente \
+        no registro abaixo. Se ele não trouxer a resposta, diga isso claramente. Quando útil, cite momentos como \
+        [mm:ss]. "Eu" é o usuário; "Outros" são os demais participantes. Seja conciso e responda em português do Brasil.
 
-        ## The user's rough notes
-        \(meeting.notesMD.isEmpty ? "(none)" : meeting.notesMD)
+        ## Anotações rápidas do usuário
+        \(meeting.notesMD.isEmpty ? "(nenhuma)" : meeting.notesMD)
 
-        ## Transcript
-        \(clamp(transcriptMD.isEmpty ? "(none)" : transcriptMD, limit: 120_000))
+        ## Transcrição
+        \(clamp(transcriptMD.isEmpty ? "(nenhuma)" : transcriptMD, limit: 120_000))
         """
         var messages: [[String: String]] = []
         for m in history.suffix(12) {
@@ -98,7 +97,7 @@ struct Enhancer {
 
     /// Tiny connectivity check used by Settings and the CLI.
     func ping() async throws -> String {
-        try await complete(system: "Reply with exactly: OK", messages: [["role": "user", "content": "ping"]], maxTokens: 16)
+        try await complete(system: "Responda exatamente: OK", messages: [["role": "user", "content": "ping"]], maxTokens: 16)
     }
 
     // MARK: - Backends
@@ -109,6 +108,8 @@ struct Enhancer {
             return try await completeAnthropic(system: system, messages: messages, maxTokens: maxTokens)
         case .ollama:
             return try await completeOllama(system: system, messages: messages)
+        case .openai:
+            return try await completeOpenAI(system: system, messages: messages, maxTokens: maxTokens)
         }
     }
 
@@ -148,6 +149,46 @@ struct Enhancer {
         }
         guard let decoded = try? JSONDecoder().decode(AnthropicResponse.self, from: data),
               let text = decoded.content.first(where: { $0.type == "text" })?.text else {
+            throw EnhanceError.badResponse
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func completeOpenAI(system: String, messages: [[String: String]], maxTokens: Int) async throws -> String {
+        let base = settings.openAIBaseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        guard let url = URL(string: base + "/chat/completions") else { throw EnhanceError.badResponse }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 600
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        let key = settings.openAIKey
+        if !key.isEmpty { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
+
+        var allMessages: [[String: String]] = [["role": "system", "content": system]]
+        allMessages.append(contentsOf: messages)
+        let body: [String: Any] = [
+            "model": settings.openAIModel,
+            "messages": allMessages,
+            "max_tokens": maxTokens,
+            "temperature": 0.3,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            throw EnhanceError.http(status, Self.errorMessage(from: data))
+        }
+        struct OpenAIResponse: Decodable {
+            struct Choice: Decodable {
+                struct Message: Decodable { let content: String? }
+                let message: Message
+            }
+            let choices: [Choice]
+        }
+        guard let decoded = try? JSONDecoder().decode(OpenAIResponse.self, from: data),
+              let text = decoded.choices.first?.message.content,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw EnhanceError.badResponse
         }
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -195,9 +236,9 @@ struct Enhancer {
 
     /// Ollama models have small context windows; Claude does not, but cap anyway.
     private func clamp(_ text: String, limit: Int? = nil) -> String {
-        let cap = limit ?? (settings.provider == .anthropic ? 350_000 : 24_000)
+        let cap = limit ?? (settings.provider == .ollama ? 24_000 : 350_000)
         guard text.count > cap else { return text }
         let tail = String(text.suffix(cap))
-        return "(transcript truncated — showing the most recent part)\n…\n" + tail
+        return "(transcrição truncada — exibindo a parte mais recente)\n…\n" + tail
     }
 }

@@ -5,7 +5,7 @@ enum MicError: LocalizedError {
     case invalidInputFormat
 
     var errorDescription: String? {
-        "The input device reported an invalid audio format. Check System Settings → Sound → Input."
+        "O dispositivo de entrada informou um formato de áudio inválido. Verifique Ajustes do Sistema → Som → Entrada."
     }
 }
 
@@ -267,9 +267,9 @@ final class MicRecorder {
         if emittedSamples == 0 || maxAbs < 8 {
             if voiceProcessingActive {
                 onVoiceProcessingFailed?()
-                restartRaw(reason: "Echo cancellation went silent — switched back to the raw mic.")
+                restartRaw(reason: "O cancelamento de eco ficou sem áudio — o Muesli voltou ao microfone bruto.")
             } else {
-                onNotice?("The mic looks silent — check the input device and its level in System Settings → Sound → Input.")
+                onNotice?("O microfone parece sem áudio — verifique o dispositivo de entrada e o nível em Ajustes do Sistema → Som → Entrada.")
             }
         }
     }

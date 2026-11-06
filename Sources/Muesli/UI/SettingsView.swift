@@ -4,11 +4,11 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             AISettingsTab()
-                .tabItem { Label("AI", systemImage: "sparkles") }
+                .tabItem { Label("IA", systemImage: "sparkles") }
             TranscriptionSettingsTab()
-                .tabItem { Label("Transcription", systemImage: "waveform") }
+                .tabItem { Label("Transcrição", systemImage: "waveform") }
             RecordingSettingsTab()
-                .tabItem { Label("Recording", systemImage: "record.circle") }
+                .tabItem { Label("Gravação", systemImage: "record.circle") }
         }
         .frame(width: 520)
         .padding(.bottom, 4)
@@ -28,42 +28,55 @@ struct AISettingsTab: View {
 
     var body: some View {
         Form {
-            Picker("Provider", selection: $settings.provider) {
+            Picker("Provedor", selection: $settings.provider) {
                 ForEach(AIProvider.allCases) { p in
                     Text(p.label).tag(p)
                 }
             }
             .pickerStyle(.radioGroup)
 
-            if settings.provider == .anthropic {
-                SecureField("Anthropic API key", text: $keyDraft, prompt: Text("sk-ant-…"))
+            switch settings.provider {
+            case .anthropic:
+                SecureField("Chave da API Anthropic", text: $keyDraft, prompt: Text("sk-ant-…"))
                     .onSubmit(saveKey)
                 HStack {
-                    Button("Save key", action: saveKey)
+                    Button("Salvar chave", action: saveKey)
                         .disabled(keyDraft == settings.anthropicKey)
-                    Text(settings.anthropicKey.isEmpty ? "No key stored" : "Key stored in your macOS Keychain")
+                    Text(settings.anthropicKey.isEmpty ? "Nenhuma chave armazenada" : "Chave armazenada no Chaves do macOS")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Picker("Model", selection: $settings.anthropicModel) {
+                Picker("Modelo", selection: $settings.anthropicModel) {
                     ForEach(claudeModels, id: \.self) { Text($0).tag($0) }
                     if !claudeModels.contains(settings.anthropicModel) {
                         Text(settings.anthropicModel).tag(settings.anthropicModel)
                     }
                 }
-            } else {
-                TextField("Ollama URL", text: $settings.ollamaBaseURL)
-                TextField("Ollama model", text: $settings.ollamaModel, prompt: Text("llama3.1"))
-                Text("Requires the Ollama app running with the model pulled. Fully local — nothing leaves your Mac.")
+            case .ollama:
+                TextField("URL do Ollama", text: $settings.ollamaBaseURL)
+                TextField("Modelo do Ollama", text: $settings.ollamaModel, prompt: Text("llama3.1"))
+                Text("Requer o Ollama em execução com o modelo baixado. Tudo é local — nada sai do seu Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            case .openai:
+                TextField("URL-base compatível com OpenAI", text: $settings.openAIBaseURL, prompt: Text("http://localhost:20128/v1"))
+                TextField("Modelo", text: $settings.openAIModel, prompt: Text("stack"))
+                SecureField("Chave da API", text: $keyDraft)
+                    .onSubmit(saveKey)
+                HStack {
+                    Button("Salvar chave", action: saveKey)
+                        .disabled(keyDraft == settings.openAIKey)
+                    Text(settings.openAIKey.isEmpty ? "Nenhuma chave armazenada" : "Chave armazenada no Chaves do macOS")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack {
                 Button {
                     test()
                 } label: {
-                    if testing { ProgressView().controlSize(.small) } else { Text("Test connection") }
+                    if testing { ProgressView().controlSize(.small) } else { Text("Testar conexão") }
                 }
                 .disabled(testing)
                 if let testResult {
@@ -75,15 +88,29 @@ struct AISettingsTab: View {
         }
         .padding(20)
         .onAppear {
-            if !keyLoaded {
-                keyDraft = settings.anthropicKey
-                keyLoaded = true
-            }
+            loadKeyDraft()
+        }
+        .onChange(of: settings.provider) { _, _ in
+            loadKeyDraft()
         }
     }
 
+    private func loadKeyDraft() {
+        keyDraft = switch settings.provider {
+        case .anthropic: settings.anthropicKey
+        case .ollama: ""
+        case .openai: settings.openAIKey
+        }
+        keyLoaded = true
+    }
+
     private func saveKey() {
-        settings.anthropicKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch settings.provider {
+        case .anthropic: settings.anthropicKey = key
+        case .openai: settings.openAIKey = key
+        case .ollama: break
+        }
     }
 
     private func test() {
@@ -114,13 +141,13 @@ struct TranscriptionSettingsTab: View {
                     if let bin = settings.resolveWhisperBinary() {
                         Text(bin.path).font(.caption).foregroundStyle(.green)
                     } else {
-                        Text("Not found — brew install whisper-cpp")
+                        Text("Não encontrado — brew install whisper-cpp")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                 }
             }
-            TextField("Custom whisper-cli path (optional)", text: $settings.whisperPathOverride, prompt: Text("/opt/homebrew/bin/whisper-cli"))
+            TextField("Caminho personalizado do whisper-cli (opcional)", text: $settings.whisperPathOverride, prompt: Text("/opt/homebrew/bin/whisper-cli"))
 
             Divider()
 
@@ -133,17 +160,17 @@ struct TranscriptionSettingsTab: View {
                     Spacer()
                     if ModelDownloader.isDownloaded(model, in: settings.modelsDir) {
                         if settings.modelFileName == model.id {
-                            Label("Active", systemImage: "checkmark.circle.fill")
+                            Label("Ativo", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(Color.oat)
                                 .labelStyle(.titleAndIcon)
                         } else {
-                            Button("Use") { settings.modelFileName = model.id }
+                            Button("Usar") { settings.modelFileName = model.id }
                         }
                     } else if downloader.downloading == model.id {
                         ProgressView(value: downloader.progress)
                             .frame(width: 90)
                     } else {
-                        Button("Download") {
+                        Button("Baixar") {
                             downloader.download(model, to: settings.modelsDir)
                         }
                         .disabled(downloader.downloading != nil)
@@ -156,8 +183,8 @@ struct TranscriptionSettingsTab: View {
 
             Divider()
 
-            TextField("Language", text: $settings.language, prompt: Text("en, or auto"))
-            Text("Use an English-only model with \"en\", or Large v3 Turbo with \"auto\" for other languages.")
+            TextField("Idioma", text: $settings.language, prompt: Text("pt ou auto"))
+            Text("Use um modelo exclusivo para inglês com \"en\" ou o Large v3 Turbo com \"auto\" para outros idiomas.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -172,26 +199,33 @@ struct RecordingSettingsTab: View {
 
     var body: some View {
         Form {
-            Toggle("Capture system audio (the other side of calls)", isOn: $settings.captureSystemAudio)
-            Toggle("Echo cancellation on the mic (experimental)", isOn: $settings.echoCancellation)
-            Text("Keeps call audio played through speakers out of your \"Me\" stream. Recording always starts on the raw mic instantly; echo cancellation is probed in the background and only used if it proves healthy. Headphones make it unnecessary.")
+            Toggle("Capturar áudio do sistema (a outra parte da chamada)", isOn: $settings.captureSystemAudio)
+            Toggle("Cancelamento de eco no microfone (experimental)", isOn: $settings.echoCancellation)
+            Text("Evita que o áudio da chamada reproduzido pelos alto-falantes entre no fluxo \"Eu\". A gravação sempre começa imediatamente com o microfone bruto; o cancelamento de eco é testado em segundo plano e usado apenas se estiver funcionando. Fones de ouvido o tornam desnecessário.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if settings.vpKnownBad {
-                Label("Echo cancellation failed on this Mac and is being skipped. Toggle it off and on to retry.", systemImage: "exclamationmark.triangle")
+                Label("O cancelamento de eco falhou neste Mac e será ignorado. Desative e ative novamente para tentar de novo.", systemImage: "exclamationmark.triangle")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
             Divider()
 
-            LabeledContent("Transcription chunk") {
+            LabeledContent("Bloco de transcrição") {
                 VStack(alignment: .trailing) {
-                    Slider(value: $settings.chunkSeconds, in: 15...30, step: 1) {
-                        Text("Chunk length")
+                    Picker("Duração do bloco", selection: $settings.chunkSeconds) {
+                        Text("15 segundos").tag(15.0)
+                        Text("30 segundos").tag(30.0)
+                        Text("1 minuto").tag(60.0)
+                        Text("2 minutos").tag(120.0)
+                        Text("3 minutos").tag(180.0)
+                        Text("5 minutos").tag(300.0)
+                        Text("10 minutos").tag(600.0)
                     }
-                    .frame(width: 200)
-                    Text("\(Int(settings.chunkSeconds)) seconds — shorter = snappier live transcript, longer = better accuracy")
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    Text("Menor = transcrição ao vivo mais rápida. Em 10 minutos, o texto pode levar até 10 minutos para aparecer e usa mais memória.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -199,12 +233,12 @@ struct RecordingSettingsTab: View {
 
             Divider()
 
-            LabeledContent("Your data") {
-                Button("Open data folder") {
+            LabeledContent("Seus dados") {
+                Button("Abrir pasta de dados") {
                     NSWorkspace.shared.activateFileViewerSelecting([MeetingStore.defaultBaseDir()])
                 }
             }
-            Text("Every meeting is a plain folder: meeting.json, notes.md, transcript.md, enhanced.md, mic.wav, system.wav.")
+            Text("Cada reunião é uma pasta comum: meeting.json, notes.md, transcript.md, enhanced.md, mic.wav e system.wav.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

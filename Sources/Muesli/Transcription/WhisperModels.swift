@@ -12,10 +12,10 @@ struct WhisperModelInfo: Identifiable, Equatable {
     }
 
     static let catalog: [WhisperModelInfo] = [
-        .init(id: "ggml-tiny.en.bin", label: "Tiny (English) — fastest", sizeMB: 75, englishOnly: true),
-        .init(id: "ggml-base.en.bin", label: "Base (English) — recommended", sizeMB: 142, englishOnly: true),
-        .init(id: "ggml-small.en.bin", label: "Small (English) — more accurate", sizeMB: 466, englishOnly: true),
-        .init(id: "ggml-large-v3-turbo.bin", label: "Large v3 Turbo — best, all languages", sizeMB: 1536, englishOnly: false),
+        .init(id: "ggml-tiny.en.bin", label: "Tiny (inglês) — mais rápido", sizeMB: 75, englishOnly: true),
+        .init(id: "ggml-base.en.bin", label: "Base (inglês) — recomendado", sizeMB: 142, englishOnly: true),
+        .init(id: "ggml-small.en.bin", label: "Small (inglês) — mais preciso", sizeMB: 466, englishOnly: true),
+        .init(id: "ggml-large-v3-turbo.bin", label: "Large v3 Turbo — melhor, todos os idiomas", sizeMB: 1536, englishOnly: false),
     ]
 }
 

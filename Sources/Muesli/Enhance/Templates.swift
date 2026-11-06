@@ -10,13 +10,13 @@ struct NoteTemplate: Identifiable, Equatable {
     static let all: [NoteTemplate] = [
         NoteTemplate(
             id: "auto",
-            name: "Auto",
+            name: "Automático",
             icon: "wand.and.stars",
             instructions: """
-            Structure: open with a 2–3 sentence **TL;DR**, then sections that follow the shape of the user's \
-            rough notes (or a sensible thematic structure if the notes are sparse). \
-            End with **## Action items** (markdown checkboxes, with owner and deadline when mentioned) \
-            and **## Open questions** if there are any.
+            Estrutura: abra com **## Resumo** em 2–3 frases e siga com seções que acompanhem a estrutura \
+            das anotações rápidas do usuário (ou uma estrutura temática adequada quando elas forem escassas). \
+            Termine com **## Itens de ação** (caixas de seleção em Markdown, incluindo responsável e prazo quando citados) \
+            e **## Questões em aberto**, se houver.
             """
         ),
         NoteTemplate(
@@ -24,50 +24,50 @@ struct NoteTemplate: Identifiable, Equatable {
             name: "1:1",
             icon: "person.2",
             instructions: """
-            This is a one-on-one. Structure: **TL;DR**, **What's on their mind**, **What's on my mind**, \
-            **Feedback exchanged**, **Decisions**, **## Action items** (split "Mine" vs "Theirs"), \
-            and **Topics for next time**.
+            Esta é uma reunião individual. Estrutura: **## Resumo**, **Assuntos da outra pessoa**, \
+            **Meus assuntos**, **Feedbacks trocados**, **Decisões**, **## Itens de ação** \
+            (separados em "Meus" e "Da outra pessoa") e **Temas para a próxima conversa**.
             """
         ),
         NoteTemplate(
             id: "sales",
-            name: "Sales / Discovery",
+            name: "Vendas / Descoberta",
             icon: "dollarsign.circle",
             instructions: """
-            This is a sales or discovery call. Structure: **TL;DR** (deal temperature in one line), \
-            **About the prospect** (company, role, context), **Pain points** (verbatim quotes where strong), \
-            **Requirements & success criteria**, **Budget / timeline / decision process** (mark anything \
-            not discussed as "not discussed"), **Objections**, **## Action items**, and **Next step** \
-            (the single agreed next step, with date if set).
+            Esta é uma conversa de vendas ou descoberta. Estrutura: **## Resumo** (temperatura da oportunidade em uma linha), \
+            **Sobre o prospect** (empresa, cargo e contexto), **Dores** (com citações literais quando relevantes), \
+            **Requisitos e critérios de sucesso**, **Orçamento / cronograma / processo decisório** \
+            (marque o que não foi discutido como "não discutido"), **Objeções**, **## Itens de ação** e **Próximo passo** \
+            (o único próximo passo acordado, com data se definida).
             """
         ),
         NoteTemplate(
             id: "standup",
-            name: "Standup / Sync",
+            name: "Alinhamento / Sincronização",
             icon: "person.3",
             instructions: """
-            This is a team sync. Structure: **TL;DR**, **Updates by person/topic** (compact bullets), \
-            **Blockers**, **Decisions**, and **## Action items** with owners.
+            Este é um alinhamento de equipe. Estrutura: **## Resumo**, **Atualizações por pessoa/tema** \
+            (tópicos concisos), **Impedimentos**, **Decisões** e **## Itens de ação** com responsáveis.
             """
         ),
         NoteTemplate(
             id: "interview",
-            name: "Interview",
+            name: "Entrevista",
             icon: "questionmark.bubble",
             instructions: """
-            This is an interview (job, user research, or podcast). Structure: **TL;DR** (overall read), \
-            **Background**, **Highlights by theme** (use short verbatim quotes for the strongest moments), \
-            **Red flags / concerns** (only if evidenced), and **## Follow-ups**.
+            Esta é uma entrevista (de trabalho, pesquisa com usuários ou podcast). Estrutura: **## Resumo** \
+            (avaliação geral), **Contexto**, **Destaques por tema** (com citações curtas nos momentos mais fortes), \
+            **Sinais de alerta / preocupações** (somente quando houver evidência) e **## Próximos passos**.
             """
         ),
         NoteTemplate(
             id: "brainstorm",
-            name: "Brainstorm",
+            name: "Brainstorming",
             icon: "lightbulb",
             instructions: """
-            This is a brainstorm. Structure: **TL;DR**, **Ideas** (grouped by theme, every distinct idea kept, \
-            best ones bolded with a one-line why), **Ideas parked/rejected and why**, **Decisions**, \
-            and **## Action items**.
+            Este é um brainstorming. Estrutura: **## Resumo**, **Ideias** (agrupadas por tema, mantendo cada ideia \
+            distinta e destacando as melhores com uma justificativa curta), **Ideias adiadas/descartadas e por quê**, \
+            **Decisões** e **## Itens de ação**.
             """
         ),
     ]

@@ -10,9 +10,9 @@ enum SystemAudioError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noDisplay:
-            return "No display found to capture system audio from."
+            return "Nenhuma tela foi encontrada para capturar o áudio do sistema."
         case .notAuthorized:
-            return "Screen & System Audio Recording permission is required to hear the other side of a call."
+            return "A permissão Gravação de Tela e Áudio do Sistema é necessária para ouvir a outra parte da chamada."
         }
     }
 }

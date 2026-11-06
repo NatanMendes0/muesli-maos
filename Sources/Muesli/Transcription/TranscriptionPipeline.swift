@@ -104,7 +104,7 @@ actor TranscriptionPipeline {
         if FileManager.default.fileExists(atPath: mic.path) { job.micURL = mic }
         if FileManager.default.fileExists(atPath: sys.path) { job.sysURL = sys }
         guard job.micURL != nil || job.sysURL != nil else {
-            onError("No audio files found for this meeting.")
+            onError("Nenhum arquivo de áudio foi encontrado para esta reunião.")
             return
         }
         job.keepFiles = true

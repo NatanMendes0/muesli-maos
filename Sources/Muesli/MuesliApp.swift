@@ -42,12 +42,12 @@ struct MuesliApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("New Meeting & Record") {
+                Button("Nova reunião e gravação") {
                     Task { await RecordingController.shared?.startNewMeeting() }
                 }
                 .keyboardShortcut("n", modifiers: .command)
 
-                Button("Stop Recording") {
+                Button("Parar gravação") {
                     Task { await RecordingController.shared?.stop() }
                 }
                 .keyboardShortcut(".", modifiers: .command)
@@ -59,40 +59,37 @@ struct MuesliApp: App {
                 .environmentObject(settings)
         }
 
-        MenuBarExtra {
+        // Keep the status-menu view entirely independent of recorder state.
+        // While an NSMenu is tracking, macOS 26 can recurse indefinitely when a
+        // SwiftUI MenuBarExtra receives frequent ObservableObject updates (audio
+        // levels and the live timer). The menu actions consult the shared
+        // controller only when selected, after AppKit has handled the item.
+        MenuBarExtra("Muesli", systemImage: "waveform") {
             MenuBarContent()
-                .environmentObject(store)
-                .environmentObject(recorder)
-        } label: {
-            Image(systemName: recorder.isRecording ? "waveform.circle.fill" : "waveform")
         }
     }
 }
 
+/// A deliberately static menu. Do not observe `RecordingController` here:
+/// an NSMenu tracks synchronously and macOS 26 re-enters SwiftUI rendering when
+/// an observed recording timer or audio-meter update changes during tracking.
 struct MenuBarContent: View {
-    @EnvironmentObject private var store: MeetingStore
-    @EnvironmentObject private var recorder: RecordingController
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        if case .recording(let id, let started) = recorder.state {
-            Text("Recording — \(store.meeting(id)?.title ?? "meeting")")
-            Text(started, style: .timer)
-            Button("Stop Recording") {
-                Task { await recorder.stop() }
-            }
-        } else {
-            Button("Start New Meeting") {
-                Task { await recorder.startNewMeeting() }
-            }
-        }
-        Divider()
-        Button("Open Muesli") {
+        Button("Abrir Muesli") {
             openWindow(id: "main")
-            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
         }
         Divider()
-        Button("Quit Muesli") {
+        Button("Iniciar nova reunião") {
+            Task { await RecordingController.shared?.startNewMeeting() }
+        }
+        Button("Parar gravação") {
+            Task { await RecordingController.shared?.stop() }
+        }
+        Divider()
+        Button("Encerrar Muesli") {
             NSApp.terminate(nil)
         }
     }

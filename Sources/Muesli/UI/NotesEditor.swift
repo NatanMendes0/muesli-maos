@@ -13,22 +13,23 @@ struct NotesEditor: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: $draft)
-                .font(.system(size: 14))
-                .lineSpacing(3)
+                .font(.system(size: 14.5, weight: .regular, design: .rounded))
+                .lineSpacing(4)
+                .foregroundStyle(CoastalTheme.text)
                 .scrollContentBackground(.hidden)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 18)
 
             if draft.isEmpty {
-                Text("Type rough notes while you talk — fragments are fine.\nMuesli polishes them with the transcript when you hit ✨ Enhance.")
-                    .foregroundStyle(.tertiary)
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 17)
-                    .padding(.vertical, 18)
+                Text("Anote livremente durante a conversa — frases curtas servem.\nO Muesli combina suas anotações com a transcrição ao selecionar ✨ Aprimorar.")
+                    .foregroundStyle(CoastalTheme.secondaryText.opacity(0.72))
+                    .font(.system(size: 14.5, design: .rounded))
+                    .padding(.horizontal, 29)
+                    .padding(.vertical, 26)
                     .allowsHitTesting(false)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(CoastalTheme.background)
         .onAppear {
             if !loaded {
                 draft = store.meeting(meetingID)?.notesMD ?? ""

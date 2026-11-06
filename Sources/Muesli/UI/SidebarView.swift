@@ -39,10 +39,10 @@ struct SidebarView: View {
                             SidebarRow(meeting: meeting)
                                 .tag(meeting.id)
                                 .contextMenu {
-                                    Button("Reveal in Finder") {
+                                    Button("Mostrar no Finder") {
                                         NSWorkspace.shared.activateFileViewerSelecting([store.folder(for: meeting)])
                                     }
-                                    Button("Delete", role: .destructive) {
+                                    Button("Excluir", role: .destructive) {
                                         if selectedID == meeting.id { selectedID = nil }
                                         store.delete(meeting)
                                     }
@@ -62,20 +62,26 @@ struct SidebarView: View {
             Button {
                 Task { await recorder.startNewMeeting() }
             } label: {
-                Label(recorder.isRecording ? "Recording…" : "Start meeting", systemImage: "record.circle.fill")
+                Label(recorder.isRecording ? "Gravando…" : "Iniciar reunião", systemImage: "record.circle.fill")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(CoastalTheme.text)
                     .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(recorder.isRecording ? AnyShapeStyle(Color.red.opacity(0.78)) : AnyShapeStyle(CoastalTheme.accentGradient), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+                    }
             }
-            .controlSize(.large)
-            .buttonStyle(.borderedProminent)
-            .tint(recorder.isRecording ? .red : .oat)
+            .buttonStyle(.plain)
             .disabled(recorder.isRecording)
 
             if !recorder.isRecording {
                 Menu {
-                    Button("Start (mic only, no system audio)") {
+                    Button("Iniciar (somente microfone, sem áudio do sistema)") {
                         Task { await recorder.startNewMeeting(captureSystemAudio: false) }
                     }
-                    Button("New empty note (no recording)") {
+                    Button("Nova anotação vazia (sem gravação)") {
                         let m = store.createMeeting()
                         selectedID = m.id
                     }
@@ -100,7 +106,7 @@ struct SidebarView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text(status.hasBlockers ? "Finish setup to record" : "Add an AI provider to enhance")
+                    Text(status.hasBlockers ? "Conclua a configuração para gravar" : "Adicione um provedor de IA para aprimorar")
                         .font(.callout)
                     Spacer()
                 }

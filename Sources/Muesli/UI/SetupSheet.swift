@@ -39,8 +39,8 @@ struct SetupSheet: View {
             HStack(spacing: 12) {
                 Text("🥣").font(.system(size: 40))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Set up Muesli").font(.title2.weight(.semibold))
-                    Text("Local-first meeting notes. Five quick things:")
+                    Text("Configurar o Muesli").font(.title2.weight(.semibold))
+                    Text("Anotações de reunião locais. Cinco etapas rápidas:")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -50,9 +50,9 @@ struct SetupSheet: View {
                 VStack(spacing: 10) {
                     SetupRow(
                         done: s.micGranted,
-                        title: "Microphone",
-                        detail: "Your side of the conversation (labeled “Me”).",
-                        actionLabel: s.micUndetermined ? "Grant" : "Open Settings"
+                        title: "Microfone",
+                        detail: "Seu lado da conversa (identificado como “Eu”).",
+                        actionLabel: s.micUndetermined ? "Permitir" : "Abrir Ajustes"
                     ) {
                         if s.micUndetermined {
                             Task { _ = await Permissions.ensureMicAccess(); refresh() }
@@ -62,9 +62,9 @@ struct SetupSheet: View {
                     }
                     SetupRow(
                         done: s.screenGranted,
-                        title: "System audio (Screen & System Audio Recording)",
-                        detail: "Everyone else on the call (labeled “Them”) — captured from your Mac's own audio, no bot joins. macOS puts this under Screen Recording; after enabling, relaunch Muesli.",
-                        actionLabel: "Enable"
+                        title: "Áudio do sistema (Gravação de Tela e Áudio do Sistema)",
+                        detail: "Os demais participantes (identificados como “Outros”) — capturados diretamente do áudio do Mac, sem bot na chamada. O macOS agrupa isso em Gravação de Tela; depois de ativar, reinicie o Muesli.",
+                        actionLabel: "Ativar"
                     ) {
                         if !Permissions.requestScreenCapture() {
                             Permissions.openScreenCaptureSettings()
@@ -73,30 +73,30 @@ struct SetupSheet: View {
                     }
                     SetupRow(
                         done: s.whisperFound,
-                        title: "Whisper engine",
+                        title: "Mecanismo Whisper",
                         detail: s.whisperFound
-                            ? "Found \(settings.resolveWhisperBinary()?.path ?? "")"
-                            : "Install with Homebrew:  brew install whisper-cpp",
-                        actionLabel: "Copy command"
+                            ? "Encontrado em \(settings.resolveWhisperBinary()?.path ?? "")"
+                            : "Instale com o Homebrew: brew install whisper-cpp",
+                        actionLabel: "Copiar comando"
                     ) {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString("brew install whisper-cpp", forType: .string)
                     }
                     SetupRow(
                         done: s.modelFound,
-                        title: "Speech model",
+                        title: "Modelo de fala",
                         detail: downloader.downloading != nil
-                            ? "Downloading… \(Int(downloader.progress * 100))%"
-                            : (s.modelFound ? settings.modelFileName : "\(recommendedModel.label) · \(recommendedModel.sizeMB) MB, one-time download"),
-                        actionLabel: downloader.downloading != nil ? "Downloading…" : "Download"
+                            ? "Baixando… \(Int(downloader.progress * 100))%"
+                            : (s.modelFound ? settings.modelFileName : "\(recommendedModel.label) · \(recommendedModel.sizeMB) MB, download único"),
+                        actionLabel: downloader.downloading != nil ? "Baixando…" : "Baixar"
                     ) {
                         downloader.download(recommendedModel, to: settings.modelsDir)
                     }
                     SetupRow(
                         done: s.aiReady,
-                        title: "AI for enhancement (optional)",
-                        detail: "Claude API key or a local Ollama — only needed for ✨ Enhance and Ask. Recording and transcription are fully local.",
-                        actionLabel: "Open AI Settings"
+                        title: "IA para aprimoramento (opcional)",
+                        detail: "Chave da API Claude, 9router ou Ollama local — necessário apenas para ✨ Aprimorar e Perguntar. A gravação e a transcrição são totalmente locais.",
+                        actionLabel: "Abrir Ajustes de IA"
                     ) {
                         openAISettings()
                     }
@@ -111,11 +111,11 @@ struct SetupSheet: View {
             }
 
             HStack {
-                Text("Audio, transcripts, and notes never leave this Mac unless you enhance with a cloud model.")
+                Text("Áudio, transcrições e anotações nunca saem deste Mac, exceto quando você aprimora usando um modelo na nuvem.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("Concluir") { dismiss() }
                     .buttonStyle(.borderedProminent)
                     .tint(.oat)
                     .keyboardShortcut(.defaultAction)
