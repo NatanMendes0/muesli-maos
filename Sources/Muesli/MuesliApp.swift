@@ -2,93 +2,128 @@ import SwiftUI
 import AppKit
 
 @main
-enum MuesliMain {
-    static func main() {
-        if MuesliCLI.runIfNeeded() { return }
-        MuesliApp.main()
-    }
-}
-
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if let controller = RecordingController.shared, controller.isRecording {
-            controller.emergencyStop()
-        }
-        return .terminateNow
-    }
-}
-
 struct MuesliApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var store: MeetingStore
     @StateObject private var settings: AppSettings
     @StateObject private var recorder: RecordingController
+    @StateObject private var updateChecker = UpdateChecker()
+    @StateObject private var templateStore = TemplateStore.shared
+    @State private var selectedMeetingID: UUID?
 
     init() {
-        let store = MeetingStore()
+        // Hidden CLI entry points for headless verification (--selftest, --transcribe, etc.).
+        if MuesliCLI.runIfNeeded() {
+            exit(0)
+        }
         let settings = AppSettings()
-        _store = StateObject(wrappedValue: store)
+        let store = MeetingStore(baseDir: settings.baseDir)
+        let recorder = RecordingController(store: store, settings: settings)
         _settings = StateObject(wrappedValue: settings)
-        _recorder = StateObject(wrappedValue: RecordingController(store: store, settings: settings))
+        _store = StateObject(wrappedValue: store)
+        _recorder = StateObject(wrappedValue: recorder)
+        _selectedMeetingID = State(initialValue: store.meetings.first?.id)
     }
 
     var body: some Scene {
-        WindowGroup(id: "main") {
-            ContentView()
+        WindowGroup("Muesli v\(AppVersion.current)") {
+            ContentView(selectedMeetingID: $selectedMeetingID)
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(recorder)
+                .environmentObject(updateChecker)
+                .environmentObject(templateStore)
+                .preferredColorScheme(settings.themeMode.colorScheme)
                 .frame(minWidth: 960, minHeight: 620)
+                .onAppear {
+                    updateChecker.checkOnLaunch()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    store.reload()
+                }
         }
+        .defaultSize(width: 1180, height: 760)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("Nova reunião e gravação") {
-                    Task { await RecordingController.shared?.startNewMeeting() }
+                Button("Nova reunião (gravar)") {
+                    Task {
+                        await recorder.startNewMeeting()
+                        if let id = recorder.recordingMeetingID {
+                            selectedMeetingID = id
+                        }
+                    }
                 }
                 .keyboardShortcut("n", modifiers: .command)
+                .disabled(recorder.isRecording)
 
                 Button("Parar gravação") {
-                    Task { await RecordingController.shared?.stop() }
+                    Task { await recorder.stop() }
                 }
                 .keyboardShortcut(".", modifiers: .command)
+                .disabled(!recorder.isRecording)
             }
         }
 
         Settings {
             SettingsView()
                 .environmentObject(settings)
+                .environmentObject(store)
+                .environmentObject(updateChecker)
+                .environmentObject(templateStore)
+                .preferredColorScheme(settings.themeMode.colorScheme)
         }
 
-        // Keep the status-menu view entirely independent of recorder state.
-        // While an NSMenu is tracking, macOS 26 can recurse indefinitely when a
-        // SwiftUI MenuBarExtra receives frequent ObservableObject updates (audio
-        // levels and the live timer). The menu actions consult the shared
-        // controller only when selected, after AppKit has handled the item.
-        MenuBarExtra("Muesli", systemImage: "waveform") {
-            MenuBarContent()
+        MenuBarExtra {
+            MenuBarMenu(selectedMeetingID: $selectedMeetingID)
+                .environmentObject(store)
+                .environmentObject(recorder)
+        } label: {
+            Image(systemName: recorder.isRecording ? "record.circle.fill" : "waveform.circle")
         }
     }
 }
 
-/// A deliberately static menu. Do not observe `RecordingController` here:
-/// an NSMenu tracks synchronously and macOS 26 re-enters SwiftUI rendering when
-/// an observed recording timer or audio-meter update changes during tracking.
-struct MenuBarContent: View {
-    @Environment(\.openWindow) private var openWindow
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        RecordingController.shared?.emergencyStop()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+}
+
+struct MenuBarMenu: View {
+    @EnvironmentObject private var store: MeetingStore
+    @EnvironmentObject private var recorder: RecordingController
+    @Binding var selectedMeetingID: UUID?
 
     var body: some View {
+        if recorder.isRecording {
+            Text("Gravando…")
+            Button("Parar gravação") {
+                Task { await recorder.stop() }
+            }
+        } else {
+            Button("Iniciar gravação") {
+                Task {
+                    await recorder.startNewMeeting()
+                    if let id = recorder.recordingMeetingID { selectedMeetingID = id }
+                }
+            }
+        }
+        Divider()
         Button("Abrir Muesli") {
-            openWindow(id: "main")
-            DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
+            NSApp.activate(ignoringOtherApps: true)
+            for window in NSApp.windows where window.canBecomeMain {
+                window.makeKeyAndOrderFront(nil)
+            }
         }
-        Divider()
-        Button("Iniciar nova reunião") {
-            Task { await RecordingController.shared?.startNewMeeting() }
-        }
-        Button("Parar gravação") {
-            Task { await RecordingController.shared?.stop() }
-        }
-        Divider()
         Button("Encerrar Muesli") {
             NSApp.terminate(nil)
         }

@@ -12,6 +12,7 @@ struct SetupStatus {
     /// Items that block recording + local transcription entirely.
     var hasBlockers: Bool { !micGranted || !whisperFound || !modelFound }
 
+    @MainActor
     static func current(settings: AppSettings) -> SetupStatus {
         SetupStatus(
             micGranted: Permissions.micStatus == .authorized,
@@ -95,7 +96,7 @@ struct SetupSheet: View {
                     SetupRow(
                         done: s.aiReady,
                         title: "IA para aprimoramento (opcional)",
-                        detail: "Chave da API Claude, 9router ou Ollama local — necessário apenas para ✨ Aprimorar e Perguntar. A gravação e a transcrição são totalmente locais.",
+                        detail: "Groq (gratuito via conta em console.groq.com), Gemini, OpenAI, Claude ou Ollama local — necessário apenas para ✨ Aprimorar e Perguntar. Gravação e transcrição são 100% locais.",
                         actionLabel: "Abrir Ajustes de IA"
                     ) {
                         openAISettings()

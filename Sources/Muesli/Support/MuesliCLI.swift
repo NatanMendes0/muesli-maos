@@ -11,7 +11,7 @@ enum MuesliCLI {
     static func runIfNeeded() -> Bool {
         let args = CommandLine.arguments
         if args.contains("--version") {
-            print("Muesli 0.1.0")
+            print("Muesli \(AppVersion.current)")
             return true
         }
         if args.contains("--selftest") {
@@ -153,8 +153,8 @@ enum MuesliCLI {
         let sem = DispatchSemaphore(value: 0)
         Task {
             do {
-                let settings = AppSettings()
-                let transcriber = try WhisperTranscriber(settings: settings)
+                let settings = await MainActor.run { AppSettings() }
+                let transcriber = try await MainActor.run { try WhisperTranscriber(settings: settings) }
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
                 let segments = try await transcriber.transcribe(wav: url, timeout: 600)
                 for s in segments {
@@ -175,8 +175,17 @@ enum MuesliCLI {
 
     private static func enhanceTest() -> Bool {
         let sem = DispatchSemaphore(value: 0)
-        Task {
+        Task { @MainActor in
             let settings = AppSettings()
+            if let envKey = ProcessInfo.processInfo.environment["GROQ_API_KEY"], !envKey.isEmpty {
+                settings.groqKey = envKey
+            }
+            if let envKey = ProcessInfo.processInfo.environment["GEMINI_API_KEY"], !envKey.isEmpty {
+                settings.geminiKey = envKey
+            }
+            if let envKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !envKey.isEmpty {
+                settings.openAIKey = envKey
+            }
             if let envKey = ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"], !envKey.isEmpty {
                 settings.anthropicKey = envKey
             }

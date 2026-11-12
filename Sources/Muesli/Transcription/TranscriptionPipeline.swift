@@ -51,7 +51,7 @@ actor TranscriptionPipeline {
     private func process(_ job: TranscriptionJob) async {
         let transcriber: WhisperTranscriber
         do {
-            transcriber = try WhisperTranscriber(settings: settings)
+            transcriber = try await MainActor.run { try WhisperTranscriber(settings: settings) }
         } catch {
             onError(error.localizedDescription)
             return

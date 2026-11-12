@@ -1,5 +1,8 @@
 # 🥣 Muesli
 
+> [!TIP]
+> **Configuração recomendada (gratuita e rápida):** No macOS, mantenha o **Whisper local** para privacidade total na transcrição e utilize o **Groq** via chave(s) de API (**é gratuito — basta criar uma conta em [console.groq.com](https://console.groq.com)**) como provedor de IA, recomendando o modelo **`qwen/qwen3.8-27b`**. Também há suporte nativo a **Google Gemini**, **OpenAI** (ou compatíveis), **Anthropic Claude** e **Ollama local**, com rotação automática entre múltiplas chaves.
+
 **The open-source meeting notepad.** Granola-style AI meeting notes — your mic, your Mac, your models, your files.
 
 Muesli records both sides of any call **without a bot joining the meeting**, transcribes it **locally** with Whisper, lets you type rough notes while you talk, and then blends your fragments with the transcript into polished notes using Claude or a fully-local Ollama model.

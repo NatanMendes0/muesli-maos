@@ -13,23 +13,23 @@ struct NotesEditor: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             TextEditor(text: $draft)
-                .font(.system(size: 14.5, weight: .regular, design: .rounded))
+                .font(.system(size: 14, weight: .regular))
                 .lineSpacing(4)
                 .foregroundStyle(CoastalTheme.text)
                 .scrollContentBackground(.hidden)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 18)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
 
             if draft.isEmpty {
-                Text("Anote livremente durante a conversa — frases curtas servem.\nO Muesli combina suas anotações com a transcrição ao selecionar ✨ Aprimorar.")
-                    .foregroundStyle(CoastalTheme.secondaryText.opacity(0.72))
-                    .font(.system(size: 14.5, design: .rounded))
-                    .padding(.horizontal, 29)
-                    .padding(.vertical, 26)
+                Text("Faça suas anotações rápidas aqui durante a reunião. Tópicos, palavras-chave, decisões...\nO Muesli expande tudo com a transcrição ao finalizar ou ao clicar em Aprimorar.")
+                    .foregroundStyle(CoastalTheme.faintText)
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 25)
+                    .padding(.vertical, 24)
                     .allowsHitTesting(false)
             }
         }
-        .background(CoastalTheme.background)
+        .background(CoastalTheme.surface)
         .onAppear {
             if !loaded {
                 draft = store.meeting(meetingID)?.notesMD ?? ""
@@ -40,7 +40,7 @@ struct NotesEditor: View {
             guard loaded else { return }
             saveTask?.cancel()
             saveTask = Task {
-                try? await Task.sleep(nanoseconds: 700_000_000)
+                try? await Task.sleep(nanoseconds: 600_000_000)
                 guard !Task.isCancelled else { return }
                 store.updateNotes(meetingID, notes: newValue)
             }

@@ -19,6 +19,12 @@ final class RecordingController: ObservableObject {
     @Published var systemAudioWarning: String?
     /// Mic status worth showing (echo-cancel fallback, silent input device).
     @Published var micWarning: String?
+    /// Meeting currently running AI enhancement (manual or auto on stop).
+    @Published var enhancingMeetingID: UUID?
+    /// Immediate toast banner message for UI feedback.
+    @Published var toastMessage: String?
+
+    private var toastTask: Task<Void, Never>?
 
     let store: MeetingStore
     let settings: AppSettings
@@ -152,6 +158,59 @@ final class RecordingController: ObservableObject {
         state = .idle
         micLevel = 0
         sysLevel = 0
+
+        if settings.autoEnhanceOnStop && settings.hasAIConfigured {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // Wait up to 90s for any final queued Whisper chunks to finish.
+                for _ in 0..<180 {
+                    if await self.pipeline.pendingCount == 0 { break }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                }
+                guard !self.isRecording,
+                      let m = self.store.meeting(meetingID),
+                      (m.hasTranscript || !m.notesMD.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                else { return }
+                await self.enhance(meetingID: meetingID, automatic: true)
+            }
+        }
+    }
+
+    func showToast(_ message: String, duration: Double = 3.0) {
+        toastTask?.cancel()
+        toastMessage = message
+        toastTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.toastMessage = nil
+        }
+    }
+
+    func enhance(meetingID: UUID, automatic: Bool = false) async {
+        guard enhancingMeetingID == nil, let meeting = store.meeting(meetingID) else { return }
+        guard settings.hasAIConfigured else {
+            if !automatic {
+                lastError = EnhanceError.notConfigured.localizedDescription
+            }
+            return
+        }
+        enhancingMeetingID = meetingID
+        lastError = nil
+        defer { enhancingMeetingID = nil }
+        do {
+            let enhancer = Enhancer(settings: settings)
+            let md = try await enhancer.enhance(meeting: meeting)
+            store.setEnhanced(meetingID, markdown: md)
+            if let updated = store.meeting(meetingID), !updated.isManualTitle {
+                let suggested = await enhancer.suggestTitle(meeting: updated, enhancedMD: md)
+                if !suggested.isEmpty {
+                    store.setAutoTitle(meetingID, title: suggested)
+                }
+            }
+            showToast(automatic ? "Ata aprimorada e título atualizado automaticamente ✨" : "Ata aprimorada com sucesso ✨")
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     /// Synchronous best-effort stop for app termination: finalizes WAV headers.

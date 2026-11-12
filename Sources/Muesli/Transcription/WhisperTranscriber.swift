@@ -33,6 +33,7 @@ struct WhisperTranscriber {
     let model: URL
     let language: String
 
+    @MainActor
     init(settings: AppSettings) throws {
         guard let bin = settings.resolveWhisperBinary() else { throw WhisperError.binaryNotFound }
         guard let model = settings.modelURL else { throw WhisperError.modelNotFound }

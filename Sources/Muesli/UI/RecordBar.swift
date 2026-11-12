@@ -1,36 +1,39 @@
 import SwiftUI
+import Combine
 
-/// Live recording strip: pulsing dot, elapsed time, input level meters,
-/// transcription backlog, stop button.
 struct RecordBar: View {
     @EnvironmentObject private var recorder: RecordingController
-    @State private var pulse = false
+    @State private var now = Date()
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        HStack(spacing: 14) {
-            Circle()
-                .fill(.red)
-                .frame(width: 10, height: 10)
-                .opacity(pulse ? 0.35 : 1)
-                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
-                .onAppear { pulse = true }
-
-            if case .recording(_, let started) = recorder.state {
-                Text(started, style: .timer)
-                    .font(.title3.monospacedDigit().weight(.medium))
+        HStack(spacing: 12) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(CoastalTheme.danger)
+                    .frame(width: 9, height: 9)
+                Text("Gravando")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(CoastalTheme.danger)
+                Text(formatClock(elapsed))
+                    .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(CoastalTheme.text)
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(CoastalTheme.dangerSoft, in: Capsule())
 
-            LevelMeter(label: "Microfone", level: recorder.micLevel, tint: .oat)
-            LevelMeter(label: "Sistema", level: recorder.sysLevel, tint: .blue)
+            LevelMeter(label: "Eu", level: recorder.micLevel)
+            LevelMeter(label: "Outros", level: recorder.sysLevel)
 
             Spacer()
 
             if recorder.pendingChunks > 0 {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     ProgressView().controlSize(.mini)
-                    Text("\(recorder.pendingChunks) bloco\(recorder.pendingChunks == 1 ? "" : "s")")
+                    Text("Transcrevendo (\(recorder.pendingChunks))")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(CoastalTheme.secondaryText)
                 }
             }
 
@@ -38,34 +41,48 @@ struct RecordBar: View {
                 Task { await recorder.stop() }
             } label: {
                 Label("Parar", systemImage: "stop.fill")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(CoastalTheme.danger, in: RoundedRectangle(cornerRadius: 7))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .buttonStyle(.plain)
             .keyboardShortcut(".", modifiers: .command)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 9)
+        .background(CoastalTheme.surface)
+        .onReceive(timer) { now = $0 }
+    }
+
+    private var elapsed: Double {
+        if case .recording(_, let started) = recorder.state {
+            return max(0, now.timeIntervalSince(started))
+        }
+        return 0
     }
 }
 
-struct LevelMeter: View {
+private struct LevelMeter: View {
     let label: String
     let level: Float
-    let tint: Color
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 5) {
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(CoastalTheme.secondaryText)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.08))
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: max(3, geo.size.width * CGFloat(min(1, level))))
-                        .animation(.linear(duration: 0.1), value: level)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(CoastalTheme.separator)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(CoastalTheme.accent)
+                        .frame(width: geo.size.width * CGFloat(min(1, max(0.03, level))))
                 }
             }
-            .frame(width: 70, height: 6)
+            .frame(width: 56, height: 6)
         }
     }
 }

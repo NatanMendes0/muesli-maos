@@ -5,87 +5,90 @@ struct TranscriptView: View {
     @EnvironmentObject private var recorder: RecordingController
     let meetingID: UUID
 
-    @State private var autoScroll = true
-
     private var meeting: Meeting? { store.meeting(meetingID) }
-    private var isLive: Bool { recorder.recordingMeetingID == meetingID }
 
     var body: some View {
-        if let meeting, meeting.hasTranscript {
-            VStack(spacing: 0) {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 14) {
-                            ForEach(meeting.transcript.coalesced(), id: \.id) { group in
-                                TranscriptGroupView(group: group)
-                                    .id(group.id)
-                            }
-                            if isLive {
-                                HStack(spacing: 8) {
-                                    ProgressView().controlSize(.small)
-                                    Text(recorder.pendingChunks > 0
-                                         ? "Transcrevendo \(recorder.pendingChunks) bloco\(recorder.pendingChunks == 1 ? "" : "s")…"
-                                         : "Ouvindo…")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .id("live-tail")
-                            }
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 22)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .onChange(of: meeting.transcript.count) { _, _ in
-                        guard autoScroll, isLive else { return }
-                        withAnimation {
-                            proxy.scrollTo("live-tail", anchor: .bottom)
-                        }
-                    }
-                }
-                if isLive {
-                    Divider()
-                    Toggle("Rolagem automática", isOn: $autoScroll)
-                        .toggleStyle(.checkbox)
-                        .font(.caption)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-        } else {
+        let groups = meeting?.transcript.coalesced() ?? []
+
+        if groups.isEmpty {
             VStack(spacing: 10) {
-                Image(systemName: isLive ? "waveform" : "text.quote")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.tertiary)
-                    .symbolEffect(.variableColor.iterative, isActive: isLive)
-                Text(isLive
-                     ? (recorder.pendingChunks > 0 ? "Transcrevendo o primeiro bloco…" : "Ouvindo — a transcrição aparece em blocos de aproximadamente 20 segundos.")
-                     : "Ainda não há transcrição. Grave esta reunião ou use ⋯ → Transcrever novamente se houver arquivos de áudio.")
-                    .foregroundStyle(.secondary)
+                Image(systemName: "waveform")
+                    .font(.system(size: 28))
+                    .foregroundStyle(CoastalTheme.faintText)
+                Text(recorder.recordingMeetingID == meetingID
+                     ? "Ouvindo… os blocos de transcrição aparecem a cada ~20s."
+                     : "Nenhuma transcrição registrada ainda.")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(CoastalTheme.secondaryText)
                     .multilineTextAlignment(.center)
+                if recorder.recordingMeetingID != meetingID && hasAudioFiles {
+                    Button("Transcrever áudio salvo") {
+                        recorder.retranscribe(meetingID: meetingID)
+                        recorder.showToast("Retranscrição local iniciada…")
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(CoastalTheme.btnInkFg)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(CoastalTheme.btnInkBg, in: RoundedRectangle(cornerRadius: 7))
+                }
             }
+            .padding(18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding()
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(groups, id: \.id) { g in
+                            TranscriptRow(speaker: g.speaker, start: g.start, text: g.text)
+                                .id(g.id)
+                        }
+                    }
+                    .padding(14)
+                }
+                .onChange(of: groups.count) { _, _ in
+                    if recorder.recordingMeetingID == meetingID, let last = groups.last {
+                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                    }
+                }
+            }
         }
+    }
+
+    private var hasAudioFiles: Bool {
+        guard let m = meeting else { return false }
+        let dir = store.folder(for: m)
+        let fm = FileManager.default
+        return fm.fileExists(atPath: dir.appendingPathComponent("mic.wav").path)
+            || fm.fileExists(atPath: dir.appendingPathComponent("system.wav").path)
     }
 }
 
-struct TranscriptGroupView: View {
-    let group: (id: UUID, speaker: Speaker, start: Double, text: String)
+private struct TranscriptRow: View {
+    let speaker: Speaker
+    let start: Double
+    let text: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(group.speaker.label)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(group.speaker == .me ? Color.oat : Color.blue)
-                Text(formatClock(group.start))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                Text(speaker.label)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(speaker == .me ? CoastalTheme.accent : CoastalTheme.infoFg)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        speaker == .me ? CoastalTheme.accentSoft : CoastalTheme.infoBg,
+                        in: RoundedRectangle(cornerRadius: 4)
+                    )
+                Text(formatClock(start))
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(CoastalTheme.faintText)
             }
-            Text(group.text)
-                .font(.system(size: 13.5))
-                .lineSpacing(3)
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(CoastalTheme.bodyText)
                 .textSelection(.enabled)
         }
     }

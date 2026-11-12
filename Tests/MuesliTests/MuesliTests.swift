@@ -118,3 +118,62 @@ import Foundation
         #expect(!AudioMath.trailingQuiet(loud))
     }
 }
+
+@Suite struct MultiProviderAndExportTests {
+    @Test func stripThinkAndCleanTitle() {
+        let raw = "<think>analisando transcrição\npasso 2</think>\nAlinhamento Projeto Spectrum 3D"
+        #expect(Enhancer.stripThink(raw) == "Alinhamento Projeto Spectrum 3D")
+        #expect(Enhancer.cleanSuggestedTitle("Título: \"# Planejamento Q4!\"") == "Planejamento Q4!")
+        #expect(Enhancer.stripThink("<think>sem fechar") == "")
+    }
+
+    @Test func keyRotatorRoundRobinAndCooldown() {
+        let keys = ["k1", "k2", "k3"]
+        let pool = "test_pool_\(UUID().uuidString)"
+        let first = KeyRotator.shared.orderedKeys(pool: pool, keys: keys)
+        #expect(first == ["k1", "k2", "k3"])
+
+        KeyRotator.shared.markSuccess(pool: pool, key: "k1", allKeys: keys)
+        let second = KeyRotator.shared.orderedKeys(pool: pool, keys: keys)
+        #expect(second == ["k2", "k3", "k1"])
+
+        KeyRotator.shared.markFailure(pool: pool, key: "k2", statusCode: 429)
+        let third = KeyRotator.shared.orderedKeys(pool: pool, keys: keys)
+        #expect(third.first == "k3")
+        #expect(third.last == "k2")
+    }
+
+    @Test func copilotPromptAndObsidianMarkdown() {
+        var m = Meeting(title: "Reunião SESI", createdAt: Date(timeIntervalSince1970: 1_755_000_000), durationSeconds: 125, folderName: "sesi")
+        m.notesMD = "- revisar API"
+        m.enhancedMD = "## Resumo Executivo\n- Tudo aprovado."
+        m.transcript = [.init(speaker: .me, start: 10, end: 15, text: "Vamos publicar hoje.")]
+
+        let prompt = Enhancer.buildCopilotPrompt(meeting: m)
+        #expect(prompt.contains("| Ação / Tarefa | Responsável | Prazo / Momento |"))
+        #expect(prompt.contains("Reunião SESI"))
+        #expect(prompt.contains("Vamos publicar hoje."))
+
+        let md = Enhancer.buildObsidianMarkdown(meeting: m, includeTranscript: true)
+        #expect(md.contains("tipo: reuniao"))
+        #expect(md.contains("# 📋 Reunião SESI"))
+        #expect(md.contains("## 📌 Resumo & Pontos Chave"))
+        #expect(md.contains("## 💬 Transcrição Completa"))
+    }
+
+    @Test func legacyMeetingJSONDecodesWithoutIsManualTitle() throws {
+        let legacyJSON = """
+        {"id":"11111111-1111-1111-1111-111111111111","title":"Antiga","createdAt":"2026-01-01T10:00:00Z","durationSeconds":30,"templateID":"auto","notesMD":"ok","transcript":[],"chat":[],"folderName":"old"}
+        """
+        let decoded = try JSONDecoder.muesli.decode(Meeting.self, from: Data(legacyJSON.utf8))
+        #expect(decoded.title == "Antiga")
+        #expect(decoded.isManualTitle == false)
+    }
+
+    @Test func updateVersionComparison() {
+        #expect(UpdateChecker.isNewerVersion("v1.2.0", than: "1.1.0"))
+        #expect(UpdateChecker.isNewerVersion("1.1.1", than: "1.1.0"))
+        #expect(!UpdateChecker.isNewerVersion("v1.1.0", than: "1.1.0"))
+        #expect(!UpdateChecker.isNewerVersion("v1.0.0", than: "1.1.0"))
+    }
+}

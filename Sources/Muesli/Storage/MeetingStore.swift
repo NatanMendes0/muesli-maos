@@ -111,8 +111,17 @@ final class MeetingStore: ObservableObject {
     }
 
     func updateTitle(_ id: UUID, title: String) {
-        guard var m = meeting(id), !title.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-        m.title = title
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var m = meeting(id), !trimmed.isEmpty else { return }
+        m.title = trimmed
+        m.isManualTitle = true
+        update(m)
+    }
+
+    func setAutoTitle(_ id: UUID, title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var m = meeting(id), !m.isManualTitle, !trimmed.isEmpty else { return }
+        m.title = trimmed
         update(m)
     }
 
@@ -126,7 +135,7 @@ final class MeetingStore: ObservableObject {
         guard var m = meeting(id) else { return }
         m.enhancedMD = markdown
         // Lift a "# Title" first line into the meeting title if the user never renamed it.
-        if m.isDefaultTitle,
+        if !m.isManualTitle && m.isDefaultTitle,
            let first = markdown.split(separator: "\n").first,
            first.hasPrefix("# ") {
             let lifted = first.dropFirst(2).trimmingCharacters(in: .whitespaces)
@@ -213,8 +222,8 @@ enum WelcomeContent {
     static let notes = """
     - Muesli = anotador de reuniões de código aberto
     - escreva anotações rápidas durante a chamada; fragmentos servem
-    - o Whisper roda localmente → a transcrição permanece neste Mac
-    - selecione ✨ Aprimorar depois → Claude, 9router ou Ollama combinam anotações e transcrição
+    - o Whisper roda localmente no Mac → a transcrição permanece privada
+    - selecione ✨ Aprimorar depois → Groq, Gemini, OpenAI, Claude ou Ollama combinam anotações e transcrição
     """
 
     static let transcript: [TranscriptSegment] = [
@@ -241,9 +250,9 @@ enum WelcomeContent {
     - Use **Perguntar** para consultar a reunião, por exemplo: "o que decidimos sobre preços?".
 
     ## Itens de ação
-    - [ ] Abra **Ajustes → Transcrição** e confirme que o modelo Whisper foi baixado
-    - [ ] Configure uma chave da API Anthropic, 9router ou Ollama em **Ajustes → IA**
-    - [ ] Conceda as permissões de microfone e gravação de tela quando solicitado
+    - [ ] Abra **Configurações → Transcrição** e confirme que o modelo Whisper local foi baixado
+    - [ ] Configure chaves do **Groq** (gratuito), **Gemini**, **OpenAI**, **Claude** ou **Ollama** em **Configurações → Modelos de IA**
+    - [ ] Ou use a aba **📋 Prompt Copilot (SESI)** para copiar e colar direto no Microsoft Copilot sem precisar de chave de API
 
     ## Questões em aberto
     - Qual será sua primeira reunião gravada?
