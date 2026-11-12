@@ -203,4 +203,22 @@ import Foundation
         let pureSilence = [Int16](repeating: 0, count: 16000 * 10)
         #expect(!AudioMath.hasSpeech(pureSilence, sampleRate: 16000))
     }
+
+    @Test func extractsOpenAIStandardAndSSEFallback() {
+        let std = #"{"choices":[{"message":{"content":"Conexão OK"}}]}"#
+        #expect(Enhancer.extractOpenAIStyleContent(from: Data(std.utf8)) == "Conexão OK")
+
+        let sse = """
+        data: {"choices":[{"delta":{"role":"assistant"}}]}
+
+        data: {"choices":[{"delta":{"reasoning_content":"pensando..."}}]}
+
+        data: {"choices":[{"delta":{"content":"Conexão"}}]}
+
+        data: {"choices":[{"delta":{"content":" OK"}}]}
+
+        data: [DONE]
+        """
+        #expect(Enhancer.extractOpenAIStyleContent(from: Data(sse.utf8)) == "Conexão OK")
+    }
 }

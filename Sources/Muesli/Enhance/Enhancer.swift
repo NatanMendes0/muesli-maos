@@ -139,7 +139,7 @@ final class Enhancer {
             parts.append("Trecho da transcrição:\n" + String(snippet.prefix(2000)))
         }
 
-        guard let raw = try? await complete(system: Self.titleSystemPrompt, user: parts.joined(separator: "\n\n"), maxTokens: 80) else {
+        guard let raw = try? await complete(system: Self.titleSystemPrompt, user: parts.joined(separator: "\n\n"), maxTokens: 300) else {
             return ""
         }
         return Self.cleanSuggestedTitle(raw)
@@ -149,7 +149,7 @@ final class Enhancer {
         let reply = try await complete(
             system: "Responda em português com no máximo 5 palavras.",
             user: "Diga 'Conexão OK' para confirmar que a API está funcionando.",
-            maxTokens: 40
+            maxTokens: 256
         )
         return Self.stripThink(reply)
     }
@@ -159,7 +159,7 @@ final class Enhancer {
             provider: target,
             system: "Responda exatamente: Conexão OK",
             messages: [("user", "ping")],
-            maxTokens: 20
+            maxTokens: 512
         )
         return Self.stripThink(reply)
     }
@@ -526,6 +526,7 @@ final class Enhancer {
 
         let body: [String: Any] = [
             "model": model,
+            "stream": false,
             "temperature": 0.3,
             "max_tokens": maxTokens,
             "messages": apiMessages,
@@ -537,14 +538,39 @@ final class Enhancer {
         guard (200..<300).contains(code) else {
             throw EnhanceError.httpError(code, errorMessage(from: data))
         }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let msg = choices.first?["message"] as? [String: Any],
-              let content = msg["content"] as? String
-        else { throw EnhanceError.emptyResponse }
-        let cleaned = stripThink(content)
-        guard !cleaned.isEmpty else { throw EnhanceError.emptyResponse }
-        return cleaned
+        if let content = extractOpenAIStyleContent(from: data) {
+            let cleaned = stripThink(content)
+            if !cleaned.isEmpty { return cleaned }
+        }
+        throw EnhanceError.emptyResponse
+    }
+
+    nonisolated static func extractOpenAIStyleContent(from data: Data) -> String? {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let choices = json["choices"] as? [[String: Any]],
+           let msg = choices.first?["message"] as? [String: Any],
+           let content = msg["content"] as? String {
+            return content
+        }
+        // Fallback: assemble SSE chunks if an OpenAI-compatible proxy (e.g. 9router) streams anyway.
+        guard let raw = String(data: data, encoding: .utf8), raw.contains("data:") else {
+            return nil
+        }
+        var assembled = ""
+        for line in raw.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("data:") else { continue }
+            let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+            if payload == "[DONE]" || payload.isEmpty { continue }
+            guard let chunkData = payload.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: chunkData) as? [String: Any],
+                  let choices = obj["choices"] as? [[String: Any]],
+                  let delta = choices.first?["delta"] as? [String: Any],
+                  let piece = delta["content"] as? String
+            else { continue }
+            assembled += piece
+        }
+        return assembled.isEmpty ? nil : assembled
     }
 
     private static func callGemini(

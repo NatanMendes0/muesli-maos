@@ -150,11 +150,12 @@ enum MuesliCLI {
     // MARK: - Transcribe a file through the app's own pipeline code
 
     private static func transcribe(path: String) -> Bool {
-        let sem = DispatchSemaphore(value: 0)
-        Task {
+        var finished = false
+        var exitCode: Int32 = 0
+        Task { @MainActor in
             do {
-                let settings = await MainActor.run { AppSettings() }
-                let transcriber = try await MainActor.run { try WhisperTranscriber(settings: settings) }
+                let settings = AppSettings()
+                let transcriber = try WhisperTranscriber(settings: settings)
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
                 let segments = try await transcriber.transcribe(wav: url, timeout: 600)
                 for s in segments {
@@ -163,18 +164,22 @@ enum MuesliCLI {
                 if segments.isEmpty { print("(no speech detected)") }
             } catch {
                 print("ERROR: \(error.localizedDescription)")
-                exit(1)
+                exitCode = 1
             }
-            sem.signal()
+            finished = true
         }
-        sem.wait()
+        while !finished {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        if exitCode != 0 { exit(exitCode) }
         return true
     }
 
     // MARK: - Enhance connectivity test
 
     private static func enhanceTest() -> Bool {
-        let sem = DispatchSemaphore(value: 0)
+        var finished = false
+        var exitCode: Int32 = 0
         Task { @MainActor in
             let settings = AppSettings()
             if let envKey = ProcessInfo.processInfo.environment["GROQ_API_KEY"], !envKey.isEmpty {
@@ -194,11 +199,14 @@ enum MuesliCLI {
                 print("ENHANCE OK: \(reply)")
             } catch {
                 print("ENHANCE ERROR: \(error.localizedDescription)")
-                exit(1)
+                exitCode = 1
             }
-            sem.signal()
+            finished = true
         }
-        sem.wait()
+        while !finished {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+        }
+        if exitCode != 0 { exit(exitCode) }
         return true
     }
 }
