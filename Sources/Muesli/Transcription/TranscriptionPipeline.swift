@@ -49,11 +49,36 @@ actor TranscriptionPipeline {
     }
 
     private func process(_ job: TranscriptionJob) async {
-        let transcriber: WhisperTranscriber
-        do {
-            transcriber = try await MainActor.run { try WhisperTranscriber(settings: settings) }
-        } catch {
-            onError(error.localizedDescription)
+        struct STTSnapshot: Sendable {
+            let engine: STTEngine
+            let keys: [String]
+            let model: String
+            let language: String
+            let cloudFallback: Bool
+        }
+
+        let snap = await MainActor.run {
+            STTSnapshot(
+                engine: settings.sttEngine,
+                keys: settings.resolvedSTTKeys(),
+                model: settings.resolvedSTTModel(),
+                language: settings.language,
+                cloudFallback: settings.sttCloudFallback
+            )
+        }
+
+        var localTranscriber: WhisperTranscriber?
+        var localInitError: Error?
+        if snap.engine == .local || snap.cloudFallback {
+            do {
+                localTranscriber = try await MainActor.run { try WhisperTranscriber(settings: settings) }
+            } catch {
+                localInitError = error
+            }
+        }
+
+        if snap.engine == .local, localTranscriber == nil {
+            onError(localInitError?.localizedDescription ?? WhisperError.binaryNotFound.localizedDescription)
             return
         }
 
@@ -62,11 +87,42 @@ actor TranscriptionPipeline {
         func run(_ url: URL, start: Double, speaker: Speaker) async {
             let contextKey = "\(job.meetingID.uuidString)-\(speaker.rawValue)"
             do {
-                let raw = try await transcriber.transcribe(
-                    wav: url,
-                    prompt: job.replaceTranscript ? nil : context[contextKey],
-                    timeout: job.timeout
-                )
+                let raw: [WhisperSegment]
+                if snap.engine != .local {
+                    let cloud = CloudTranscriber(
+                        engine: snap.engine,
+                        keys: snap.keys,
+                        model: snap.model,
+                        language: snap.language
+                    )
+                    do {
+                        raw = try await cloud.transcribe(
+                            wav: url,
+                            prompt: job.replaceTranscript ? nil : context[contextKey],
+                            timeout: max(180, job.timeout)
+                        )
+                    } catch {
+                        if snap.cloudFallback, let local = localTranscriber {
+                            onError("Aviso (\(snap.engine.shortLabel)): \(error.localizedDescription) — usando Whisper local como reserva.")
+                            raw = try await local.transcribe(
+                                wav: url,
+                                prompt: job.replaceTranscript ? nil : context[contextKey],
+                                timeout: job.timeout
+                            )
+                        } else {
+                            throw error
+                        }
+                    }
+                } else if let local = localTranscriber {
+                    raw = try await local.transcribe(
+                        wav: url,
+                        prompt: job.replaceTranscript ? nil : context[contextKey],
+                        timeout: job.timeout
+                    )
+                } else {
+                    throw localInitError ?? WhisperError.binaryNotFound
+                }
+
                 for seg in raw {
                     segments.append(TranscriptSegment(
                         speaker: speaker,

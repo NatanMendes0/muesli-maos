@@ -45,8 +45,8 @@ final class RecordingSession {
     init(meetingID: UUID, folder: URL, chunkSeconds: Double, captureSystem: Bool) throws {
         self.meetingID = meetingID
         self.folder = folder
-        self.minChunkSeconds = max(10, chunkSeconds)
-        self.maxChunkSeconds = max(10, chunkSeconds) + 15
+        self.minChunkSeconds = max(10, min(480, chunkSeconds))
+        self.maxChunkSeconds = min(540, self.minChunkSeconds + 15)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         micWriter = try WavWriter(url: micFileURL, sampleRate: sampleRate)
         if captureSystem {
@@ -112,14 +112,14 @@ final class RecordingSession {
 
         // A stream with no real signal in this chunk is skipped entirely —
         // that avoids Whisper hallucinating text on silence.
-        if micChunk.count > sampleRate, AudioMath.rms(micChunk) > 120 {
+        if AudioMath.hasSpeech(micChunk, sampleRate: sampleRate) {
             let url = tmpDir.appendingPathComponent("\(meetingID.uuidString)-\(chunkIndex)-mic.wav")
             if (try? WavWriter.write(samples: micChunk, to: url, sampleRate: sampleRate)) != nil {
                 job.micURL = url
                 job.micStart = Double(micFlushedSamples) / Double(sampleRate)
             }
         }
-        if sysChunk.count > sampleRate, AudioMath.rms(sysChunk) > 120 {
+        if AudioMath.hasSpeech(sysChunk, sampleRate: sampleRate) {
             let url = tmpDir.appendingPathComponent("\(meetingID.uuidString)-\(chunkIndex)-sys.wav")
             if (try? WavWriter.write(samples: sysChunk, to: url, sampleRate: sampleRate)) != nil {
                 job.sysURL = url

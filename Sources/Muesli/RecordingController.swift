@@ -96,7 +96,7 @@ final class RecordingController: ObservableObject {
             let session = try RecordingSession(
                 meetingID: meeting.id,
                 folder: folder,
-                chunkSeconds: settings.chunkSeconds,
+                chunkSeconds: settings.effectiveChunkSeconds,
                 captureSystem: wantSystem
             )
             session.onChunk = { [pipeline] job in

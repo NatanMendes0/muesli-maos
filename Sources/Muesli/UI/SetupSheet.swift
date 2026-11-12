@@ -7,19 +7,23 @@ struct SetupStatus {
     let screenGranted: Bool
     let whisperFound: Bool
     let modelFound: Bool
+    let sttReady: Bool
     let aiReady: Bool
 
-    /// Items that block recording + local transcription entirely.
-    var hasBlockers: Bool { !micGranted || !whisperFound || !modelFound }
+    /// Items that block recording + transcription entirely.
+    var hasBlockers: Bool { !micGranted || !sttReady }
 
     @MainActor
     static func current(settings: AppSettings) -> SetupStatus {
-        SetupStatus(
+        let wFound = settings.resolveWhisperBinary() != nil
+        let mFound = settings.modelURL != nil
+        return SetupStatus(
             micGranted: Permissions.micStatus == .authorized,
             micUndetermined: Permissions.micStatus == .notDetermined,
             screenGranted: Permissions.screenCaptureGranted,
-            whisperFound: settings.resolveWhisperBinary() != nil,
-            modelFound: settings.modelURL != nil,
+            whisperFound: wFound,
+            modelFound: mFound,
+            sttReady: settings.isSTTReady,
             aiReady: settings.hasAIConfigured
         )
     }

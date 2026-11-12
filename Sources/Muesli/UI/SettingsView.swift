@@ -193,12 +193,17 @@ private struct GeneralSettingsTab: View {
     }
 }
 
-// MARK: - 2. Transcrição (Whisper Local)
+// MARK: - 2. Transcrição (Whisper Local ou API na Nuvem)
 
 private struct TranscriptionSettingsTab: View {
     @EnvironmentObject private var settings: AppSettings
     @StateObject private var downloader = ModelDownloader()
     @State private var installed: Set<String> = []
+    @State private var testingCloud = false
+    @State private var cloudTestMsg: String?
+    @State private var cloudTestOK = false
+    @State private var openRouterModels: [String] = AppSettings.sttOpenRouterModels
+    @State private var loadingOrModels = false
 
     private let languages: [(code: String, label: String)] = [
         ("pt", "Português (Brasil)"),
@@ -208,11 +213,226 @@ private struct TranscriptionSettingsTab: View {
     ]
 
     var body: some View {
-        Text("Transcrição (Whisper Local)")
+        Text("Transcrição")
             .font(.title3.weight(.bold))
             .foregroundStyle(CoastalTheme.text)
 
+        // Engine Picker
         VStack(alignment: .leading, spacing: 10) {
+            Text("Motor de transcrição")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(CoastalTheme.text)
+            Picker("", selection: Binding(
+                get: { settings.sttEngine },
+                set: {
+                    settings.sttEngine = $0
+                    cloudTestMsg = nil
+                }
+            )) {
+                ForEach(STTEngine.allCases) { eng in
+                    Text(eng.label).tag(eng)
+                }
+            }
+            .labelsHidden()
+
+            if settings.sttEngine == .groq {
+                Text("💡 Groq Whisper API é gratuito com conta em console.groq.com e ultrarrápido (whisper-large-v3-turbo). Se você já salvou chaves Groq em Modelos de IA, pode deixar as chaves abaixo em branco para reutilizá-las automaticamente.")
+                    .font(.caption)
+                    .foregroundStyle(CoastalTheme.infoFg)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CoastalTheme.infoBg, in: RoundedRectangle(cornerRadius: 7))
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(CoastalTheme.infoBorder, lineWidth: 1))
+            } else if settings.sttEngine != .local {
+                Text("Se você já configurou a chave deste provedor na aba Modelos de IA, pode deixar em branco aqui para reutilizá-la automaticamente.")
+                    .font(.caption)
+                    .foregroundStyle(CoastalTheme.secondaryText)
+            }
+        }
+        .muesliCard()
+
+        // Cloud STT Settings when engine != local
+        if settings.sttEngine != .local {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Configuração da API (\(settings.sttEngine.shortLabel))")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundStyle(CoastalTheme.text)
+                    Spacer()
+                    Button {
+                        runCloudTest()
+                    } label: {
+                        if testingCloud {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Text("Testar chave(s)")
+                        }
+                    }
+                    .controlSize(.small)
+                    .disabled(testingCloud)
+                }
+
+                switch settings.sttEngine {
+                case .groq:
+                    MultiKeyEditor(keys: $settings.sttGroqKeys, placeholder: "gsk_... (opcional se já salvou em IA)")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Modelo Whisper Groq")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(CoastalTheme.secondaryText)
+                        TextField("whisper-large-v3-turbo", text: $settings.sttGroqModel)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 6) {
+                            ForEach(AppSettings.sttGroqModels, id: \.self) { m in
+                                PresetChip(label: m, active: settings.sttGroqModel == m) {
+                                    settings.sttGroqModel = m
+                                }
+                            }
+                        }
+                    }
+                case .openai:
+                    MultiKeyEditor(keys: $settings.sttOpenAIKeys, placeholder: "sk-... (opcional se já salvou em IA)")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Modelo OpenAI STT")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(CoastalTheme.secondaryText)
+                        TextField("whisper-1", text: $settings.sttOpenAIModel)
+                            .textFieldStyle(.roundedBorder)
+                        HStack(spacing: 6) {
+                            ForEach(AppSettings.sttOpenAIModels, id: \.self) { m in
+                                PresetChip(label: m, active: settings.sttOpenAIModel == m) {
+                                    settings.sttOpenAIModel = m
+                                }
+                            }
+                        }
+                    }
+                case .openrouter:
+                    MultiKeyEditor(keys: $settings.sttOpenRouterKeys, placeholder: "sk-or-v1-...")
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Modelo OpenRouter STT")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(CoastalTheme.secondaryText)
+                            Spacer()
+                            Button(loadingOrModels ? "Buscando…" : "Listar modelos") {
+                                loadOpenRouterModels()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .foregroundStyle(CoastalTheme.infoFg)
+                            .disabled(loadingOrModels)
+                        }
+                        TextField("openai/whisper-large-v3-turbo", text: $settings.sttOpenRouterModel)
+                            .textFieldStyle(.roundedBorder)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(openRouterModels, id: \.self) { m in
+                                    PresetChip(label: m, active: settings.sttOpenRouterModel == m) {
+                                        settings.sttOpenRouterModel = m
+                                    }
+                                }
+                            }
+                        }
+                    }
+                case .local:
+                    EmptyView()
+                }
+
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Modo de envio na nuvem")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(CoastalTheme.text)
+                        Text("Lotes maiores economizam requisições de API (limite seguro ~18 MB).")
+                            .font(.caption)
+                            .foregroundStyle(CoastalTheme.secondaryText)
+                    }
+                    Spacer()
+                    Picker("", selection: $settings.sttCloudIntervalSec) {
+                        Text("Tempo real (~12 s)").tag(12.0)
+                        Text("Lote 1 min").tag(60.0)
+                        Text("Lote 5 min").tag(300.0)
+                        Text("Lote 8 min (máx. Groq)").tag(480.0)
+                    }
+                    .labelsHidden()
+                    .frame(width: 210)
+                }
+
+                Toggle(isOn: $settings.sttCloudFallback) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Usar Whisper local como reserva automática (fallback)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(CoastalTheme.text)
+                        Text("Se a API ficar offline ou atingir o limite, continua transcrevendo localmente.")
+                            .font(.caption)
+                            .foregroundStyle(CoastalTheme.secondaryText)
+                    }
+                }
+
+                if let msg = cloudTestMsg {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(cloudTestOK ? CoastalTheme.ok : CoastalTheme.danger)
+                        .textSelection(.enabled)
+                }
+            }
+            .muesliCard()
+        }
+
+        // Language & Local Block Interval
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Idioma da fala")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(CoastalTheme.text)
+                    Text("Português melhora muito a precisão tanto no Whisper local quanto na nuvem.")
+                        .font(.caption)
+                        .foregroundStyle(CoastalTheme.secondaryText)
+                }
+                Spacer()
+                Picker("", selection: $settings.language) {
+                    ForEach(languages, id: \.code) { l in
+                        Text(l.label).tag(l.code)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 210)
+            }
+
+            if settings.sttEngine == .local {
+                Divider()
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Tamanho do bloco local")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(CoastalTheme.text)
+                        Text("Intervalo de corte (em silêncio) para atualizar a transcrição ao vivo.")
+                            .font(.caption)
+                            .foregroundStyle(CoastalTheme.secondaryText)
+                    }
+                    Spacer()
+                    Picker("", selection: $settings.chunkSeconds) {
+                        Text("12 s (rápido)").tag(12.0)
+                        Text("20 s (padrão)").tag(20.0)
+                        Text("30 s").tag(30.0)
+                        Text("45 s (mais contexto)").tag(45.0)
+                    }
+                    .labelsHidden()
+                    .frame(width: 190)
+                }
+            }
+        }
+        .muesliCard()
+
+        // Local whisper.cpp binary + models (always available for local or fallback)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(settings.sttEngine == .local ? "Mecanismo Whisper Local (whisper-cli)" : "Reserva Local (whisper-cli + modelos ggml)")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(CoastalTheme.text)
+
             let binary = settings.resolveWhisperBinary()
             HStack(spacing: 8) {
                 Image(systemName: binary != nil ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
@@ -238,50 +458,6 @@ private struct TranscriptionSettingsTab: View {
                     .foregroundStyle(CoastalTheme.secondaryText)
                 TextField("/opt/homebrew/bin/whisper-cli", text: $settings.whisperPathOverride)
                     .textFieldStyle(.roundedBorder)
-            }
-        }
-        .muesliCard()
-
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Idioma da fala")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(CoastalTheme.text)
-                    Text("Português melhora muito a precisão com Large v3 Turbo.")
-                        .font(.caption)
-                        .foregroundStyle(CoastalTheme.secondaryText)
-                }
-                Spacer()
-                Picker("", selection: $settings.language) {
-                    ForEach(languages, id: \.code) { l in
-                        Text(l.label).tag(l.code)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 210)
-            }
-
-            Divider()
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tamanho do bloco de transcrição")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(CoastalTheme.text)
-                    Text("Intervalo de corte (em silêncio) para atualizar a transcrição ao vivo.")
-                        .font(.caption)
-                        .foregroundStyle(CoastalTheme.secondaryText)
-                }
-                Spacer()
-                Picker("", selection: $settings.chunkSeconds) {
-                    Text("12 s (rápido)").tag(12.0)
-                    Text("20 s (padrão)").tag(20.0)
-                    Text("30 s").tag(30.0)
-                    Text("45 s (mais contexto)").tag(45.0)
-                }
-                .labelsHidden()
-                .frame(width: 190)
             }
         }
         .muesliCard()
@@ -365,6 +541,30 @@ private struct TranscriptionSettingsTab: View {
             set.insert(m.id)
         }
         installed = set
+    }
+
+    private func runCloudTest() {
+        testingCloud = true
+        cloudTestMsg = "Validando chave(s)…"
+        cloudTestOK = false
+        let eng = settings.sttEngine
+        let keys = settings.resolvedSTTKeys(for: eng)
+        Task {
+            let res = await CloudTranscriber.validateKeys(engine: eng, keys: keys)
+            testingCloud = false
+            cloudTestOK = res.ok
+            cloudTestMsg = res.message
+        }
+    }
+
+    private func loadOpenRouterModels() {
+        loadingOrModels = true
+        let key = settings.resolvedSTTKeys(for: .openrouter).first
+        Task {
+            let list = await CloudTranscriber.fetchOpenRouterSTTModels(key: key)
+            openRouterModels = list
+            loadingOrModels = false
+        }
     }
 }
 

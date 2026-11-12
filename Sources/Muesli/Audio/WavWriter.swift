@@ -78,6 +78,22 @@ enum AudioMath {
 
     static func rms(_ samples: [Int16]) -> Double { rms(samples[...]) }
 
+    /// Checks whether a chunk contains real speech. For multi-minute cloud batches,
+    /// inspects 0.5 s sub-windows so brief speech isn't diluted by longer silence.
+    static func hasSpeech(_ samples: [Int16], sampleRate: Int = 16000) -> Bool {
+        guard samples.count > sampleRate else { return false }
+        if rms(samples) > 120 { return true }
+        let win = max(1, sampleRate / 2)
+        let blocks = samples.count / win
+        guard blocks >= 2 else { return false }
+        for i in 0..<blocks {
+            let start = i * win
+            let end = start + win
+            if rms(samples[start..<end]) > 180 { return true }
+        }
+        return false
+    }
+
     /// Is the trailing `seconds` of audio quiet enough to cut a chunk here?
     static func trailingQuiet(_ samples: [Int16], sampleRate: Int = 16000, seconds: Double = 0.3, threshold: Double = 250) -> Bool {
         let n = Int(seconds * Double(sampleRate))

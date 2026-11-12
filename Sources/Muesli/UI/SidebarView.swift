@@ -167,9 +167,9 @@ struct SidebarView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(settings.hasAIConfigured ? CoastalTheme.ok : CoastalTheme.faintText)
+                        .fill((settings.hasAIConfigured || settings.isSTTReady) ? CoastalTheme.ok : CoastalTheme.faintText)
                         .frame(width: 7, height: 7)
-                    Text(settings.activeProviderSummary)
+                    Text("\(settings.activeSTTSummary) · \(settings.activeProviderSummary)")
                         .font(.system(size: 11))
                         .foregroundStyle(CoastalTheme.secondaryText)
                         .lineLimit(1)

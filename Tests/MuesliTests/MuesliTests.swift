@@ -176,4 +176,31 @@ import Foundation
         #expect(!UpdateChecker.isNewerVersion("v1.1.0", than: "1.1.0"))
         #expect(!UpdateChecker.isNewerVersion("v1.0.0", than: "1.1.0"))
     }
+
+    @Test func cloudSTTParsesSegmentsAndTextFallback() {
+        let verbose = """
+        {"segments":[{"start":0.0,"end":2.4,"text":" Olá pessoal."},{"start":2.4,"end":3.1,"text":" [BLANK_AUDIO]"}]}
+        """
+        let segs = CloudTranscriber.parseCloudJSON(Data(verbose.utf8), fallbackDuration: 5)
+        #expect(segs.count == 1)
+        #expect(segs[0].text == "Olá pessoal.")
+        #expect(segs[0].end == 2.4)
+
+        let simple = #"{"text":" Apenas texto simples. "}"#
+        let segs2 = CloudTranscriber.parseCloudJSON(Data(simple.utf8), fallbackDuration: 8)
+        #expect(segs2.count == 1)
+        #expect(segs2[0].text == "Apenas texto simples.")
+        #expect(segs2[0].end == 8)
+    }
+
+    @Test func audioMathSubWindowSpeechGate() {
+        var mostlyQuiet = [Int16](repeating: 0, count: 16000 * 10)
+        // 1 second of speech at second 4 inside 10s of silence
+        for i in (16000 * 4)..<(16000 * 5) {
+            mostlyQuiet[i] = 1200
+        }
+        #expect(AudioMath.hasSpeech(mostlyQuiet, sampleRate: 16000))
+        let pureSilence = [Int16](repeating: 0, count: 16000 * 10)
+        #expect(!AudioMath.hasSpeech(pureSilence, sampleRate: 16000))
+    }
 }

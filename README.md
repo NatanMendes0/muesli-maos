@@ -1,7 +1,7 @@
 # 🥣 Muesli
 
 > [!TIP]
-> **Configuração recomendada (gratuita e rápida):** No macOS, mantenha o **Whisper local** para privacidade total na transcrição e utilize o **Groq** via chave(s) de API (**é gratuito — basta criar uma conta em [console.groq.com](https://console.groq.com)**) como provedor de IA, recomendando o modelo **`qwen/qwen3.8-27b`**. Também há suporte nativo a **Google Gemini**, **OpenAI** (ou compatíveis), **Anthropic Claude** e **Ollama local**, com rotação automática entre múltiplas chaves.
+> **Configuração recomendada (gratuita e rápida):** No macOS, você pode manter o **Whisper local** ou usar o **Groq** via chave(s) de API (**é gratuito — basta criar uma conta em [console.groq.com](https://console.groq.com)**) tanto como motor de transcrição (**Whisper `whisper-large-v3-turbo`** — também com suporte a **OpenAI** e **OpenRouter**) quanto como provedor de **Modelos de IA**, recomendando o modelo **`qwen/qwen3.8-27b`**. Também há suporte nativo a **Google Gemini**, **OpenAI** (ou compatíveis), **Anthropic Claude** e **Ollama local**, com rotação automática entre múltiplas chaves.
 
 **The open-source meeting notepad.** Granola-style AI meeting notes — your mic, your Mac, your models, your files.
 

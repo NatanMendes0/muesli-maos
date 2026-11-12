@@ -26,6 +26,33 @@ enum AppThemeMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum STTEngine: String, CaseIterable, Identifiable {
+    case local = "local"
+    case groq = "groq"
+    case openai = "openai"
+    case openrouter = "openrouter"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .local: return "Whisper Local (offline, gratuito)"
+        case .groq: return "Groq Whisper API (gratuito · ultrarrápido)"
+        case .openai: return "OpenAI Whisper API"
+        case .openrouter: return "OpenRouter STT API"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .local: return "Whisper Local"
+        case .groq: return "Groq STT"
+        case .openai: return "OpenAI STT"
+        case .openrouter: return "OpenRouter STT"
+        }
+    }
+}
+
 enum AIProvider: String, CaseIterable, Identifiable {
     case auto = "auto"
     case groq = "groq"
@@ -54,6 +81,12 @@ enum AIProvider: String, CaseIterable, Identifiable {
 final class AppSettings: ObservableObject {
     @AppStorage("themeMode") var themeModeRaw: String = AppThemeMode.light.rawValue
     @AppStorage("autoEnhanceOnStop") var autoEnhanceOnStop: Bool = true
+    @AppStorage("sttEngine") var sttEngineRaw: String = STTEngine.local.rawValue
+    @AppStorage("sttCloudIntervalSec") var sttCloudIntervalSec: Double = 12
+    @AppStorage("sttCloudFallback") var sttCloudFallback: Bool = true
+    @AppStorage("sttGroqModel") var sttGroqModel: String = "whisper-large-v3-turbo"
+    @AppStorage("sttOpenAIModel") var sttOpenAIModel: String = "whisper-1"
+    @AppStorage("sttOpenRouterModel") var sttOpenRouterModel: String = "openai/whisper-large-v3-turbo"
     @AppStorage("whisperPathOverride") var whisperPathOverride: String = ""
     @AppStorage("modelFileName") var modelFileName: String = "ggml-large-v3-turbo.bin"
     @AppStorage("language") var language: String = "pt"
@@ -97,6 +130,17 @@ final class AppSettings: ObservableObject {
         didSet { KeychainHelper.saveKeys(anthropicKeys, account: "anthropic-api-keys") }
     }
 
+    // Dedicated STT multi-key lists persisted in Keychain (falls back to AI keys if empty)
+    @Published var sttGroqKeys: [String] {
+        didSet { KeychainHelper.saveKeys(sttGroqKeys, account: "stt-groq-api-keys") }
+    }
+    @Published var sttOpenAIKeys: [String] {
+        didSet { KeychainHelper.saveKeys(sttOpenAIKeys, account: "stt-openai-api-keys") }
+    }
+    @Published var sttOpenRouterKeys: [String] {
+        didSet { KeychainHelper.saveKeys(sttOpenRouterKeys, account: "stt-openrouter-api-keys") }
+    }
+
     // Convenience single-key bridges for CLI / tests / simple callers
     var groqKey: String {
         get { groqKeys.first ?? "" }
@@ -125,11 +169,76 @@ final class AppSettings: ObservableObject {
         set { aiProviderRaw = newValue.rawValue; objectWillChange.send() }
     }
 
+    var sttEngine: STTEngine {
+        get { STTEngine(rawValue: sttEngineRaw) ?? .local }
+        set { sttEngineRaw = newValue.rawValue; objectWillChange.send() }
+    }
+
     init() {
         self.groqKeys = KeychainHelper.loadKeys(account: "groq-api-keys")
         self.geminiKeys = KeychainHelper.loadKeys(account: "gemini-api-keys")
         self.openAIKeys = KeychainHelper.loadKeys(account: "openai-api-keys", fallbackSingleAccount: "openai-api-key")
         self.anthropicKeys = KeychainHelper.loadKeys(account: "anthropic-api-keys", fallbackSingleAccount: "anthropic-api-key")
+        self.sttGroqKeys = KeychainHelper.loadKeys(account: "stt-groq-api-keys")
+        self.sttOpenAIKeys = KeychainHelper.loadKeys(account: "stt-openai-api-keys")
+        self.sttOpenRouterKeys = KeychainHelper.loadKeys(account: "stt-openrouter-api-keys")
+    }
+
+    func resolvedSTTKeys(for engine: STTEngine? = nil) -> [String] {
+        let target = engine ?? sttEngine
+        switch target {
+        case .local:
+            return []
+        case .groq:
+            let k = KeychainHelper.cleanKeys(sttGroqKeys)
+            return k.isEmpty ? KeychainHelper.cleanKeys(groqKeys) : k
+        case .openai:
+            let k = KeychainHelper.cleanKeys(sttOpenAIKeys)
+            return k.isEmpty ? KeychainHelper.cleanKeys(openAIKeys) : k
+        case .openrouter:
+            let k = KeychainHelper.cleanKeys(sttOpenRouterKeys)
+            if !k.isEmpty { return k }
+            if openAIBaseURL.lowercased().contains("openrouter.ai") {
+                return KeychainHelper.cleanKeys(openAIKeys)
+            }
+            return []
+        }
+    }
+
+    func resolvedSTTModel(for engine: STTEngine? = nil) -> String {
+        let target = engine ?? sttEngine
+        switch target {
+        case .local: return modelFileName
+        case .groq:
+            let m = sttGroqModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            return m.isEmpty ? "whisper-large-v3-turbo" : m
+        case .openai:
+            let m = sttOpenAIModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            return m.isEmpty ? "whisper-1" : m
+        case .openrouter:
+            let m = sttOpenRouterModel.trimmingCharacters(in: .whitespacesAndNewlines)
+            return m.isEmpty ? "openai/whisper-large-v3-turbo" : m
+        }
+    }
+
+    var effectiveChunkSeconds: Double {
+        sttEngine == .local ? chunkSeconds : max(10, min(480, sttCloudIntervalSec))
+    }
+
+    var isSTTReady: Bool {
+        if sttEngine == .local {
+            return resolveWhisperBinary() != nil && modelURL != nil
+        }
+        if !resolvedSTTKeys().isEmpty { return true }
+        return sttCloudFallback && resolveWhisperBinary() != nil && modelURL != nil
+    }
+
+    var activeSTTSummary: String {
+        if sttEngine == .local { return "Whisper Local" }
+        let keys = resolvedSTTKeys()
+        let base = sttEngine.shortLabel
+        if keys.isEmpty { return "\(base) (sem chave)" }
+        return "\(base) (\(keys.count)x)"
     }
 
     var hasGroq: Bool { !KeychainHelper.cleanKeys(groqKeys).isEmpty }
@@ -261,5 +370,21 @@ final class AppSettings: ObservableObject {
         ("claude-haiku-4-5-20251001", "Claude Haiku 4.5 (rápido e econômico)"),
         ("claude-sonnet-4-5", "Claude Sonnet 4.5 (equilibrado)"),
         ("claude-opus-4-1", "Claude Opus 4.1 (máxima qualidade)"),
+    ]
+
+    static let sttGroqModels: [String] = [
+        "whisper-large-v3-turbo",
+        "whisper-large-v3",
+    ]
+
+    static let sttOpenAIModels: [String] = [
+        "whisper-1",
+        "gpt-4o-mini-transcribe",
+        "gpt-4o-transcribe",
+    ]
+
+    nonisolated static let sttOpenRouterModels: [String] = [
+        "openai/whisper-large-v3-turbo",
+        "openai/whisper-large-v3",
     ]
 }
