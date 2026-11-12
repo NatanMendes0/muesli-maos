@@ -5,6 +5,7 @@ struct SidebarView: View {
     @EnvironmentObject private var store: MeetingStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var recorder: RecordingController
+    @Environment(\.openWindow) private var openWindow
     @Binding var selectedMeetingID: UUID?
     @Binding var searchText: String
     let onOpenSetup: () -> Void
@@ -179,7 +180,8 @@ struct SidebarView: View {
 
                 HStack(spacing: 6) {
                     Button {
-                        openSettingsWindow()
+                        NSApp.activate(ignoringOtherApps: true)
+                        openWindow(id: "settings")
                     } label: {
                         HStack(spacing: 5) {
                             Image(systemName: "gearshape")

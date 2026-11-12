@@ -33,6 +33,7 @@ struct SetupStatus {
 struct SetupSheet: View {
     @EnvironmentObject private var settings: AppSettings
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openWindow) private var openWindow
     @StateObject private var downloader = ModelDownloader()
     @State private var status: SetupStatus?
     @State private var refreshTimer: Timer?
@@ -146,11 +147,10 @@ struct SetupSheet: View {
     }
 
     private func openAISettings() {
-        if #available(macOS 14.0, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
+        UserDefaults.standard.set("ai", forKey: "settingsSelectedTab")
+        dismiss()
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "settings")
     }
 }
 

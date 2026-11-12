@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var recorder: RecordingController
     @EnvironmentObject private var updateChecker: UpdateChecker
+    @Environment(\.openWindow) private var openWindow
     @Binding var selectedMeetingID: UUID?
 
     @State private var searchText = ""
@@ -87,7 +88,8 @@ struct ContentView: View {
                     info: update,
                     onOpenUpdates: {
                         UserDefaults.standard.set("updates", forKey: "settingsSelectedTab")
-                        openSettingsWindow()
+                        NSApp.activate(ignoringOtherApps: true)
+                        openWindow(id: "settings")
                     },
                     onDismiss: {
                         updateChecker.bannerDismissed = true
@@ -127,6 +129,12 @@ struct ContentView: View {
                 .preferredColorScheme(settings.themeMode.colorScheme)
         }
         .onAppear {
+            AppDelegate.openMainWindowHandler = { [openWindow] in
+                openWindow(id: "main")
+            }
+            AppDelegate.openSettingsWindowHandler = { [openWindow] in
+                openWindow(id: "settings")
+            }
             if SetupStatus.current(settings: settings).hasBlockers {
                 showSetup = true
             }
@@ -141,15 +149,6 @@ struct ContentView: View {
         let s = settings.consentSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
         return s.isEmpty ? nil : s
     }
-}
-
-func openSettingsWindow() {
-    if #available(macOS 14.0, *) {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-    } else {
-        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-    }
-    NSApp.activate(ignoringOtherApps: true)
 }
 
 private struct UpdateCornerBanner: View {

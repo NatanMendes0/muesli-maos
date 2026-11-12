@@ -1,10 +1,7 @@
 import SwiftUI
-import Combine
 
 struct RecordBar: View {
     @EnvironmentObject private var recorder: RecordingController
-    @State private var now = Date()
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         HStack(spacing: 12) {
@@ -15,9 +12,18 @@ struct RecordBar: View {
                 Text("Gravando")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(CoastalTheme.danger)
-                Text(formatClock(elapsed))
-                    .font(.system(size: 12.5, weight: .medium).monospacedDigit())
-                    .foregroundStyle(CoastalTheme.text)
+
+                if case .recording(_, let started) = recorder.state {
+                    TimelineView(.periodic(from: started, by: 1.0)) { context in
+                        Text(formatClock(max(0, context.date.timeIntervalSince(started))))
+                            .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+                            .foregroundStyle(CoastalTheme.text)
+                    }
+                } else {
+                    Text("0:00")
+                        .font(.system(size: 12.5, weight: .medium).monospacedDigit())
+                        .foregroundStyle(CoastalTheme.text)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
@@ -53,14 +59,6 @@ struct RecordBar: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 9)
         .background(CoastalTheme.surface)
-        .onReceive(timer) { now = $0 }
-    }
-
-    private var elapsed: Double {
-        if case .recording(_, let started) = recorder.state {
-            return max(0, now.timeIntervalSince(started))
-        }
-        return 0
     }
 }
 

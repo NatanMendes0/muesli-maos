@@ -3,6 +3,7 @@ import SwiftUI
 struct EnhancedNotesView: View {
     @EnvironmentObject private var store: MeetingStore
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.openWindow) private var openWindow
     let meetingID: UUID
     let enhancing: Bool
     let onEnhance: () -> Void
@@ -44,7 +45,15 @@ struct EnhancedNotesView: View {
                     .font(.system(size: 13))
 
                 HStack(spacing: 10) {
-                    Button(action: onEnhance) {
+                    Button {
+                        if settings.hasAIConfigured {
+                            onEnhance()
+                        } else {
+                            UserDefaults.standard.set("ai", forKey: "settingsSelectedTab")
+                            NSApp.activate(ignoringOtherApps: true)
+                            openWindow(id: "settings")
+                        }
+                    } label: {
                         Label(settings.hasAIConfigured ? "Aprimorar com IA" : "Configurar IA", systemImage: "sparkles")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(CoastalTheme.btnInkFg)

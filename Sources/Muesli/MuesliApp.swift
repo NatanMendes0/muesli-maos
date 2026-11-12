@@ -26,7 +26,7 @@ struct MuesliApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Muesli v\(AppVersion.current)") {
+        Window("Muesli v\(AppVersion.current)", id: "main") {
             ContentView(selectedMeetingID: $selectedMeetingID)
                 .environmentObject(store)
                 .environmentObject(settings)
@@ -44,6 +44,9 @@ struct MuesliApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                SettingsShortcutButton()
+            }
             CommandGroup(replacing: .newItem) {
                 Button("Nova reunião (gravar)") {
                     Task {
@@ -64,7 +67,7 @@ struct MuesliApp: App {
             }
         }
 
-        Settings {
+        Window("Configurações — Muesli", id: "settings") {
             SettingsView()
                 .environmentObject(settings)
                 .environmentObject(store)
@@ -72,6 +75,7 @@ struct MuesliApp: App {
                 .environmentObject(templateStore)
                 .preferredColorScheme(settings.themeMode.colorScheme)
         }
+        .windowResizability(.contentSize)
 
         MenuBarExtra {
             MenuBarMenu(selectedMeetingID: $selectedMeetingID)
@@ -83,10 +87,37 @@ struct MuesliApp: App {
     }
 }
 
+private struct SettingsShortcutButton: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button("Configurações…") {
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "settings")
+        }
+        .keyboardShortcut(",", modifiers: .command)
+    }
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static var openMainWindowHandler: (() -> Void)?
+    static var openSettingsWindowHandler: (() -> Void)?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        let hasMainVisible = NSApp.windows.contains {
+            $0.isVisible && $0.title.hasPrefix("Muesli")
+        }
+        if !flag || !hasMainVisible {
+            Self.openMainWindowHandler?()
+        }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -101,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct MenuBarMenu: View {
     @EnvironmentObject private var store: MeetingStore
     @EnvironmentObject private var recorder: RecordingController
+    @Environment(\.openWindow) private var openWindow
     @Binding var selectedMeetingID: UUID?
 
     var body: some View {
@@ -120,10 +152,13 @@ struct MenuBarMenu: View {
         Divider()
         Button("Abrir Muesli") {
             NSApp.activate(ignoringOtherApps: true)
-            for window in NSApp.windows where window.canBecomeMain {
-                window.makeKeyAndOrderFront(nil)
-            }
+            openWindow(id: "main")
         }
+        Button("Configurações…") {
+            NSApp.activate(ignoringOtherApps: true)
+            openWindow(id: "settings")
+        }
+        Divider()
         Button("Encerrar Muesli") {
             NSApp.terminate(nil)
         }
